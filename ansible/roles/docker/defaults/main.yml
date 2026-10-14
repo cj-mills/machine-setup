@@ -1,0 +1,4 @@
+# Membership in the docker group is root-equivalent. Acceptable on a
+# single-user workstation; set false on shared machines and use sudo or
+# rootless Docker instead.
+docker_user_in_group: true

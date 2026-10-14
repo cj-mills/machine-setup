@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Blender {{ blender_series }}
+GenericName=3D modeler
+Comment=3D modeling, animation, rendering and post-production
+Exec={{ blender_bin_dir }}/blender-{{ blender_series }} %f
+Icon=blender
+Terminal=false
+Categories=Graphics;3DGraphics;
+StartupWMClass=Blender
+{% if blender_series == blender_default %}
+MimeType=application/x-blender;
+{% endif %}

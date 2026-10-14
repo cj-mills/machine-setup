@@ -1,0 +1,203 @@
+# Desktop workstation (Ubuntu LTS, x86_64). Item-level decisions live in
+# inventory/workstation-review.md; this file is their declarative form.
+
+extra_packages:
+  - xclip
+  - gparted
+  - psensor
+  - gnome-tweaks
+  - flatpak
+  - gnome-software-plugin-flatpak
+  - libreoffice
+  - shotwell
+  - rhythmbox
+  - totem
+  - transmission-gtk
+
+# Third-party apt repositories, handled by the vendor_repos role.
+#
+# Each signing key is downloaded, its primary-key fingerprints are checked against
+# `fingerprints` (every key in the file must be listed, so an added or rotated key
+# fails the run for review), and only then installed under /etc/apt/keyrings/.
+# `key_format` is the format the vendor serves: asc (armored) or gpg (binary).
+#
+# Optional per-entry fields:
+#   components    omitted for flat repositories
+#   architectures restrict to the architectures the vendor publishes
+#   files         written before package install (apt pins, vendor config)
+#   debconf       answers preseeded before package install
+#   legacy_files  repo definitions from earlier manual installs, removed so apt
+#                 does not see the same source twice with different keys
+vendor_repos_list:
+  - name: google-chrome
+    key_url: https://dl.google.com/linux/linux_signing_key.pub
+    key_format: asc
+    fingerprints: [EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796]
+    uris: https://dl.google.com/linux/chrome/deb/
+    suites: stable
+    components: main
+    architectures: amd64
+    # Stop Chrome's package from writing its own competing source definition.
+    files:
+      - dest: /etc/default/google-chrome
+        content: |
+          repo_add_once="false"
+          repo_reenable_on_distupgrade="false"
+    legacy_files: [/etc/apt/sources.list.d/google-chrome.list]
+    packages: [google-chrome-stable]
+
+  - name: brave-browser-release
+    key_url: https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
+    key_format: gpg
+    fingerprints:
+      - DBF1A116C220B8C7164F98230686B78420038257
+      - 47D32A74E9A9E013A4B4926C68D513D36A73CD96
+      - B2A3DCA350E67256740DF904DE4EC67BE4B0DCA0
+    uris: https://brave-browser-apt-release.s3.brave.com
+    suites: stable
+    components: main
+    architectures: [amd64, arm64]
+    packages: [brave-browser]
+
+  - name: mozilla
+    key_url: https://packages.mozilla.org/apt/repo-signing-key.gpg
+    key_format: asc
+    fingerprints: [35BAA0B33E9EB396F59CA838C0BA5CE6DC6315A3]
+    uris: https://packages.mozilla.org/apt
+    suites: mozilla
+    components: main
+    # Ubuntu's own `firefox` package is a transitional wrapper for the snap;
+    # pin Mozilla's repository above it.
+    files:
+      - dest: /etc/apt/preferences.d/mozilla
+        content: |
+          Package: *
+          Pin: origin packages.mozilla.org
+          Pin-Priority: 1000
+    packages: [firefox]
+
+  - name: vscode
+    key_url: https://packages.microsoft.com/keys/microsoft.asc
+    key_format: asc
+    fingerprints: [BC528686B50D79E339D3721CEB3E94ADBE1229CF]
+    uris: https://packages.microsoft.com/repos/code
+    suites: stable
+    components: main
+    architectures: [amd64, arm64]
+    # Stop the code package from writing its own competing source definition.
+    debconf:
+      - {name: code, question: code/add-microsoft-repo, vtype: boolean, value: "false"}
+    packages: [code]
+
+  - name: signal-desktop
+    key_url: https://updates.signal.org/desktop/apt/keys.asc
+    key_format: asc
+    fingerprints: [DBA36B5181D0C816F630E889D980A17457F6FB06]
+    uris: https://updates.signal.org/desktop/apt
+    suites: xenial
+    components: main
+    architectures: amd64
+    packages: [signal-desktop]
+
+  - name: github-cli
+    key_url: https://cli.github.com/packages/githubcli-archive-keyring.gpg
+    key_format: gpg
+    fingerprints:
+      - 2C6106201985B60E6C7AC87323F3D4EA75716059
+      - 7F38BBB59D064DBCB3D84D725612B36462313325
+    uris: https://cli.github.com/packages
+    suites: stable
+    components: main
+    architectures: [amd64, arm64]
+    packages: [gh]
+
+  - name: 1password
+    key_url: https://downloads.1password.com/linux/keys/1password.asc
+    key_format: asc
+    fingerprints: [3FEF9748469ADBE15DA7CA80AC2D62742012EA22]
+    uris: "https://downloads.1password.com/linux/debian/{{ deb_arch }}"
+    suites: stable
+    components: main
+    packages: [1password, 1password-cli]
+
+  - name: claude-desktop
+    key_url: https://downloads.claude.ai/claude-desktop/key.asc
+    key_format: asc
+    fingerprints: [31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE]
+    uris: https://downloads.claude.ai/claude-desktop/apt/stable
+    suites: stable
+    components: main
+    architectures: [amd64, arm64]
+    legacy_files: [/etc/apt/sources.list.d/claude-desktop.list]
+    packages: [claude-desktop]
+
+  - name: typora
+    key_url: https://downloads.typora.io/typora.gpg
+    key_format: gpg
+    fingerprints: [4AC441BE68B4ADAB7439FBF9BA300B7755AFCFAE]
+    uris: https://downloads.typora.io/linux
+    suites: ./
+    packages: [typora]
+
+  - name: mise
+    key_url: https://mise.jdx.dev/gpg-key.pub
+    key_format: asc
+    fingerprints: [24853EC9F655CE80B48E6C3A8B81C9D17413A06D]
+    uris: https://mise.jdx.dev/deb
+    suites: stable
+    components: main
+    architectures: [amd64, arm64]
+    packages: [mise]
+
+  - name: docker
+    key_url: https://download.docker.com/linux/ubuntu/gpg
+    key_format: asc
+    fingerprints: [9DC858229FC7DD38854AE2D88D81803C0EBFCD88]
+    uris: https://download.docker.com/linux/ubuntu
+    suites: "{{ ansible_distribution_release }}"
+    components: stable
+    architectures: "{{ deb_arch }}"
+    packages:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+
+# Repositories that are no longer wanted (dropped tools).
+vendor_repos_absent:
+  - nodesource  # Node.js now comes from mise
+
+# Upstream release .debs with no apt repository. Pinned by version and SHA-256;
+# bump both together.
+release_debs:
+  - name: quarto
+    version: 1.8.25
+    url: https://github.com/quarto-dev/quarto-cli/releases/download/v1.8.25/quarto-1.8.25-linux-amd64.deb
+    sha256: 48819e4ded06998faa3d36c3d90c91249f1a00dba05183710b6011ce9e1b3c04
+
+flatpak_apps:
+  - org.videolan.VLC
+  - com.github.johnfactotum.Foliate
+  - com.github.tchx84.Flatseal
+  - com.usebottles.bottles
+
+# Snaps replaced by apt/Flatpak sources above, or dropped.
+snaps_absent:
+  - firefox
+  - thunderbird
+  - code
+  - cmake
+  - signal-desktop
+  - vlc
+  - zoom-client
+  - aws-cli
+
+# Official Blender builds (GPU/CUDA/OptiX rendering). Projects use the latest
+# LTS Python API; project environments pin the matching `bpy` wheel from PyPI.
+# To add or bump a release: scripts/blender-pin.sh <series|version> prints the
+# entry with a SHA-256 verified across independent mirrors.
+blender_versions:
+  - version: 5.2.2
+    sha256: 84098912789dc450e95697c4184fb8a90acbe5111c2ba4aede3fecb57806a168
+blender_default: "5.2"

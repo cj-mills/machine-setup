@@ -1,0 +1,29 @@
+# Shared by every Debian-family host (workstation, Jetson, Pi).
+
+deb_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_architecture] }}"
+
+# Hosts with an NVIDIA discrete GPU set this in host_vars.
+nvidia_gpu: false
+
+# Core CLI set. python3-debian is required by Ansible's deb822_repository module.
+base_packages:
+  - python3-debian
+  - ca-certificates
+  - curl
+  - gnupg
+  - git
+  - git-lfs
+  - build-essential
+  - cmake
+  - ninja-build
+  - ripgrep
+  - pandoc
+  - ffmpeg
+  - imagemagick
+  - sqlite3
+  - poppler-utils
+  - unzip
+  - nvme-cli
+  - lm-sensors
+  - iotop
+  - net-tools

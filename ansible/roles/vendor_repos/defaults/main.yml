@@ -1,0 +1,3 @@
+vendor_repos_list: []
+vendor_repos_absent: []
+vendor_repos_key_staging_dir: /var/cache/machine-setup/keys

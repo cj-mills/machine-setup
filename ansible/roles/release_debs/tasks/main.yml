@@ -1,0 +1,22 @@
+- name: Ensure release .deb cache directory exists
+  ansible.builtin.file:
+    path: /var/cache/machine-setup/debs
+    state: directory
+    mode: "0755"
+
+- name: Download pinned release .debs
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    dest: "/var/cache/machine-setup/debs/{{ item.url | basename }}"
+    checksum: "sha256:{{ item.sha256 }}"
+    mode: "0644"
+  loop: "{{ release_debs | default([]) }}"
+  loop_control:
+    label: "{{ item.name }} {{ item.version }}"
+
+- name: Install pinned release .debs
+  ansible.builtin.apt:
+    deb: "/var/cache/machine-setup/debs/{{ item.url | basename }}"
+  loop: "{{ release_debs | default([]) }}"
+  loop_control:
+    label: "{{ item.name }} {{ item.version }}"

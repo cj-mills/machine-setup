@@ -1,0 +1,15 @@
+# Runs last, after the replacements from apt/Flatpak are installed.
+
+- name: Check whether snapd is present
+  ansible.builtin.command: snap version
+  register: snaps_snapd_check
+  changed_when: false
+  failed_when: false
+
+- name: Remove superseded snaps
+  community.general.snap:
+    name: "{{ snaps_absent }}"
+    state: absent
+  when:
+    - snaps_snapd_check.rc == 0
+    - snaps_absent | default([]) | length > 0

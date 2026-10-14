@@ -1,0 +1,15 @@
+# flatpak itself is installed by the base role (extra_packages).
+
+- name: Add Flathub remote
+  community.general.flatpak_remote:
+    name: flathub
+    flatpakrepo_url: https://dl.flathub.org/repo/flathub.flatpakrepo
+    method: system
+    state: present
+
+- name: Install Flatpak applications
+  community.general.flatpak:
+    name: "{{ flatpak_apps | default([]) }}"
+    remote: flathub
+    method: system
+    state: present

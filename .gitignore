@@ -1,0 +1,6 @@
+# Raw system snapshots contain personal data (paths, accounts, hostnames).
+# Only curated inventory is committed.
+inventory/raw/
+
+# Tool caches
+.ansible/
