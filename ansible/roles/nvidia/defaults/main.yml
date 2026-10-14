@@ -1,0 +1,16 @@
+# Driver branch from Ubuntu's archive. Uses the open kernel modules (NVIDIA's
+# recommendation for Turing and newer) and Ubuntu's prebuilt, signed module
+# package so Secure Boot needs no MOK enrollment. Check the branches available
+# on a new release with `ubuntu-drivers list`.
+nvidia_driver_branch: "595"
+# Kernel flavour the prebuilt modules must match: `generic` for the GA kernel,
+# `generic-hwe-<release>` when running the HWE kernel.
+nvidia_kernel_flavour: generic
+
+nvidia_container_toolkit_repo:
+  name: nvidia-container-toolkit
+  key_url: https://nvidia.github.io/libnvidia-container/gpgkey
+  key_format: asc
+  fingerprints: [C95B321B61E88C1809C4F759DDCAE044F796ECB0]
+  uris: "https://nvidia.github.io/libnvidia-container/stable/deb/{{ deb_arch }}"
+  suites: /

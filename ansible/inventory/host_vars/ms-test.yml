@@ -1,0 +1,4 @@
+# Disposable test VM (scripts/test-vm.sh). Install it with hostname `ms-test`
+# and user `tester`.
+primary_user: tester
+nvidia_gpu: false

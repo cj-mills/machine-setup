@@ -1,0 +1,23 @@
+- name: Remove unwanted vendor repositories
+  ansible.builtin.deb822_repository:
+    name: "{{ item }}"
+    state: absent
+  loop: "{{ vendor_repos_absent }}"
+  register: vendor_repos_removed
+
+- name: Configure vendor repositories
+  ansible.builtin.include_tasks: repo.yml
+  loop: "{{ vendor_repos_list }}"
+  loop_control:
+    loop_var: vendor_repos_repo
+    label: "{{ vendor_repos_repo.name }}"
+
+- name: Refresh apt cache after repository changes
+  ansible.builtin.apt:
+    update_cache: true
+  when: (vendor_repos_changed | default(false)) or (vendor_repos_removed is changed)
+
+- name: Install packages from vendor repositories
+  ansible.builtin.apt:
+    name: "{{ vendor_repos_list | map(attribute='packages') | flatten }}"
+    state: present

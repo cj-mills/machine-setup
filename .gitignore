@@ -1,0 +1,6 @@
+# Raw system snapshots contain personal data (paths, accounts, hostnames).
+# Curated reviews are kept privately, outside the repository.
+inventory/raw/
+
+# Tool caches
+.ansible/

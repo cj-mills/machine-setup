@@ -1,0 +1,19 @@
+# Official Blender builds, installed side by side under /opt/blender.
+#
+# Each entry installs /opt/blender/blender-<version>-linux-x64, a series symlink
+# /opt/blender/<major.minor>, a `blender-<major.minor>` command and a desktop
+# entry. `blender_default` (a major.minor series) also gets the plain `blender`
+# command and the .blend file association. Patch releases not listed here are
+# removed.
+#
+# download.blender.org rejects non-browser clients, so downloads use an official
+# mirror. Checksums come from the release's .sha256 file, cross-checked across
+# independent mirrors when pinned.
+blender_mirror: https://mirrors.ocf.berkeley.edu/blender/release
+blender_install_root: /opt/blender
+blender_cache_dir: /var/cache/machine-setup/blender
+blender_bin_dir: /usr/local/bin
+blender_applications_dir: /usr/local/share/applications
+blender_icons_dir: /usr/local/share/icons/hicolor/scalable/apps
+blender_versions: []
+blender_default: ""

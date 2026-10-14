@@ -1,0 +1,12 @@
+- name: Workstation system layer
+  hosts: workstation
+  become: true
+  roles:
+    - {role: base, tags: base}
+    - {role: vendor_repos, tags: vendor_repos}
+    - {role: release_debs, tags: release_debs}
+    - {role: blender, tags: blender}
+    - {role: docker, tags: docker}
+    - {role: nvidia, tags: nvidia}
+    - {role: flatpak, tags: flatpak}
+    - {role: snaps, tags: snaps}

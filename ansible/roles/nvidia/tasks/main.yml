@@ -1,0 +1,44 @@
+# Host provides the driver and the container runtime hook only. CUDA toolkits
+# come from project environments (conda/pip wheels) or container images.
+
+- name: NVIDIA driver and container toolkit
+  when: nvidia_gpu
+  block:
+    - name: Install NVIDIA driver (open kernel modules)
+      ansible.builtin.apt:
+        name:
+          - "nvidia-driver-{{ nvidia_driver_branch }}-open"
+          - "linux-modules-nvidia-{{ nvidia_driver_branch }}-open-{{ nvidia_kernel_flavour }}"
+        state: present
+      notify: Report reboot needed
+
+    - name: Configure NVIDIA Container Toolkit repository
+      ansible.builtin.include_role:
+        name: vendor_repos
+        tasks_from: repo
+      vars:
+        vendor_repos_repo: "{{ nvidia_container_toolkit_repo }}"
+
+    - name: Refresh apt cache after repository changes
+      ansible.builtin.apt:
+        update_cache: true
+      when: vendor_repos_changed | default(false)
+
+    - name: Install NVIDIA Container Toolkit
+      ansible.builtin.apt:
+        name: nvidia-container-toolkit
+        state: present
+
+    - name: Read Docker daemon configuration
+      ansible.builtin.slurp:
+        src: /etc/docker/daemon.json
+      register: nvidia_docker_daemon_json
+      failed_when: false
+
+    - name: Register the NVIDIA runtime with Docker
+      ansible.builtin.command: nvidia-ctk runtime configure --runtime=docker
+      when: >-
+        nvidia_docker_daemon_json.content is not defined
+        or 'nvidia' not in ((nvidia_docker_daemon_json.content | b64decode | from_json).runtimes | default({}))
+      changed_when: true
+      notify: Restart docker

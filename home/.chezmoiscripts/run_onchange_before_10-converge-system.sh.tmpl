@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Re-converge the system layer whenever anything under ansible/ changes.
+# Hash of git-tracked ansible/ files (untracked caches excluded):
+# {{ output "sh" "-c" (printf "cd %s && git ls-files -z ansible | xargs -0 sha256sum | sha256sum" (.chezmoi.workingTree | quote)) | trim }}
+set -euo pipefail
+exec {{ .chezmoi.workingTree | quote }}/scripts/converge-system.sh

@@ -1,0 +1,5 @@
+# Global per-user tools. Projects pin their own versions in a local mise.toml.
+[tools]
+node = "lts"
+uv = "latest"
+aws-cli = "latest"

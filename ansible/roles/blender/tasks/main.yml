@@ -1,0 +1,128 @@
+- name: Check the default series is one of the pinned versions
+  ansible.builtin.assert:
+    that: >-
+      blender_default | length == 0 or blender_default in
+      (blender_versions | map(attribute='version') | map('regex_replace', '\.\d+$', '') | list)
+    fail_msg: "blender_default '{{ blender_default }}' is not a series in blender_versions."
+    quiet: true
+
+- name: Ensure Blender directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ blender_install_root }}"
+    - "{{ blender_cache_dir }}"
+    - "{{ blender_bin_dir }}"
+    - "{{ blender_applications_dir }}"
+    - "{{ blender_icons_dir }}"
+
+- name: Download Blender releases
+  ansible.builtin.get_url:
+    url: "{{ blender_mirror }}/Blender{{ item.version | regex_replace('\\.\\d+$', '') }}/blender-{{ item.version }}-linux-x64.tar.xz"
+    dest: "{{ blender_cache_dir }}/blender-{{ item.version }}-linux-x64.tar.xz"
+    checksum: "sha256:{{ item.sha256 }}"
+    mode: "0644"
+  loop: "{{ blender_versions }}"
+  loop_control:
+    label: "{{ item.version }}"
+
+- name: Extract Blender releases
+  ansible.builtin.unarchive:
+    src: "{{ blender_cache_dir }}/blender-{{ item.version }}-linux-x64.tar.xz"
+    dest: "{{ blender_install_root }}"
+    remote_src: true
+    creates: "{{ blender_install_root }}/blender-{{ item.version }}-linux-x64/blender"
+  loop: "{{ blender_versions }}"
+  loop_control:
+    label: "{{ item.version }}"
+
+- name: Point each series symlink at its pinned release
+  ansible.builtin.file:
+    src: "blender-{{ item.version }}-linux-x64"
+    dest: "{{ blender_install_root }}/{{ item.version | regex_replace('\\.\\d+$', '') }}"
+    state: link
+    force: true
+  loop: "{{ blender_versions }}"
+  loop_control:
+    label: "{{ item.version }}"
+
+- name: Install versioned blender commands
+  ansible.builtin.file:
+    src: "{{ blender_install_root }}/{{ item.version | regex_replace('\\.\\d+$', '') }}/blender"
+    dest: "{{ blender_bin_dir }}/blender-{{ item.version | regex_replace('\\.\\d+$', '') }}"
+    state: link
+    force: true
+  loop: "{{ blender_versions }}"
+  loop_control:
+    label: "{{ item.version }}"
+
+- name: Install default blender command
+  ansible.builtin.file:
+    src: "{{ blender_install_root }}/{{ blender_default }}/blender"
+    dest: "{{ blender_bin_dir }}/blender"
+    state: link
+    force: true
+  when: blender_default | length > 0
+
+- name: Install Blender icon
+  ansible.builtin.copy:
+    src: "{{ blender_install_root }}/{{ blender_default }}/blender.svg"
+    dest: "{{ blender_icons_dir }}/blender.svg"
+    remote_src: true
+    mode: "0644"
+  when: blender_default | length > 0
+
+- name: Install desktop entries
+  ansible.builtin.template:
+    src: blender.desktop.j2
+    dest: "{{ blender_applications_dir }}/blender-{{ item.version | regex_replace('\\.\\d+$', '') }}.desktop"
+    mode: "0644"
+  loop: "{{ blender_versions }}"
+  loop_control:
+    label: "{{ item.version }}"
+  vars:
+    blender_series: "{{ item.version | regex_replace('\\.\\d+$', '') }}"
+
+- name: Compute pinned release directories and series
+  ansible.builtin.set_fact:
+    blender_wanted_dirs: >-
+      {{ blender_versions | map(attribute='version')
+         | map('regex_replace', '^', 'blender-') | map('regex_replace', '$', '-linux-x64') | list }}
+    blender_wanted_series: >-
+      {{ blender_versions | map(attribute='version') | map('regex_replace', '\.\d+$', '') | list }}
+
+- name: Find installed Blender releases
+  ansible.builtin.find:
+    paths: "{{ blender_install_root }}"
+    patterns: "blender-*-linux-x64"
+    file_type: directory
+  register: blender_installed
+
+- name: Remove Blender releases that are no longer pinned
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ blender_installed.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: (item.path | basename) not in blender_wanted_dirs
+
+- name: Find installed Blender series symlinks
+  ansible.builtin.find:
+    paths: "{{ blender_install_root }}"
+    patterns: '^\d+\.\d+$'
+    use_regex: true
+    file_type: link
+  register: blender_installed_series
+
+- name: Remove symlinks, commands and desktop entries of series no longer pinned
+  ansible.builtin.file:
+    path: "{{ item.1 }}{{ item.0 }}{{ '.desktop' if item.1 == blender_applications_dir ~ '/blender-' else '' }}"
+    state: absent
+  loop: >-
+    {{ blender_installed_series.files | map(attribute='path') | map('basename')
+       | reject('in', blender_wanted_series) | list
+       | product([blender_install_root ~ '/', blender_bin_dir ~ '/blender-', blender_applications_dir ~ '/blender-'])
+       | list }}
