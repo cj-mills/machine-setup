@@ -2,6 +2,11 @@
 
 deb_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_architecture] }}"
 
+# Account that owns the desktop session (docker group, etc.). For local converges
+# this defaults to the user who invoked sudo; remote hosts and unattended installs
+# must set it in host_vars. site.yml refuses to run if it is empty or root.
+primary_user: "{{ lookup('ansible.builtin.env', 'SUDO_USER') }}"
+
 # Hosts with an NVIDIA discrete GPU set this in host_vars.
 nvidia_gpu: false
 

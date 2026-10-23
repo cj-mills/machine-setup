@@ -1,6 +1,17 @@
 - name: Workstation system layer
   hosts: workstation
   become: true
+  pre_tasks:
+    - name: Check the primary user is set
+      ansible.builtin.assert:
+        that:
+          - primary_user | length > 0
+          - primary_user != 'root'
+        fail_msg: >-
+          primary_user is empty or root. Run scripts/converge-system.sh as your normal
+          user (it uses sudo), or set primary_user in host_vars/{{ inventory_hostname }}.yml.
+        quiet: true
+      tags: always
   roles:
     - {role: base, tags: base}
     - {role: vendor_repos, tags: vendor_repos}

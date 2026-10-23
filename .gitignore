@@ -4,3 +4,4 @@ inventory/raw/
 
 # Tool caches
 .ansible/
+ansible/collections/
