@@ -1,6 +1,6 @@
 # Shared by every Debian-family host (workstation, Jetson, Pi).
 
-deb_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_architecture] }}"
+deb_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_facts['architecture']] }}"
 
 # Account that owns the desktop session (docker group, etc.). For local converges
 # this defaults to the user who invoked sudo; remote hosts and unattended installs
