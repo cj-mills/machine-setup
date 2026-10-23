@@ -1,0 +1,15 @@
+# For a self-managed repository whose packages are installed: remove the bootstrap
+# key once the vendor's own source file no longer references it.
+
+- name: "Check which keyring the vendor's source uses — {{ vendor_repos_repo.name }}"
+  ansible.builtin.command:
+    argv: [grep, -rlF, "/etc/apt/keyrings/{{ vendor_repos_repo.name }}.{{ vendor_repos_repo.key_format }}", /etc/apt/sources.list.d]
+  register: vendor_repos_key_users
+  changed_when: false
+  failed_when: vendor_repos_key_users.rc > 1
+
+- name: "Remove unused bootstrap key — {{ vendor_repos_repo.name }}"
+  ansible.builtin.file:
+    path: "/etc/apt/keyrings/{{ vendor_repos_repo.name }}.{{ vendor_repos_repo.key_format }}"
+    state: absent
+  when: vendor_repos_key_users.rc == 1

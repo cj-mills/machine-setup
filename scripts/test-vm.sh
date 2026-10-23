@@ -4,9 +4,14 @@
 # install, run bootstrap.sh, and roll back to try again.
 #
 # Usage:
-#   scripts/test-vm.sh create             create the disk and UEFI variable store
-#   scripts/test-vm.sh install ISO        boot the installer from ISO
-#   scripts/test-vm.sh run                boot the installed system
+#   scripts/test-vm.sh create             create the disk, UEFI variable store and SSH key
+#   scripts/test-vm.sh install ISO        boot the installer from ISO (window)
+#   scripts/test-vm.sh run                boot the installed system (window, foreground)
+#   scripts/test-vm.sh start              boot headless in the background
+#   scripts/test-vm.sh stop               shut the guest down cleanly (over SSH) and wait
+#   scripts/test-vm.sh ssh [CMD...]       SSH into the guest, or run CMD there
+#   scripts/test-vm.sh wait-ssh           wait until the guest accepts SSH
+#   scripts/test-vm.sh ssh-setup          print the one-time guest commands that enable SSH
 #   scripts/test-vm.sh snapshot NAME      save a snapshot (VM must be off)
 #   scripts/test-vm.sh restore NAME       roll back to a snapshot (VM must be off)
 #   scripts/test-vm.sh list               list snapshots
@@ -17,18 +22,20 @@
 #   sudo mkdir -p /mnt/machine-setup
 #   sudo mount -t 9p -o trans=virtio,version=9p2000.L,ro machine-setup /mnt/machine-setup
 #   MACHINE_SETUP_REPO=file:///mnt/machine-setup bash /mnt/machine-setup/bootstrap.sh
-# Guest SSH (once openssh-server is installed) is forwarded to 127.0.0.1:$VM_SSH_PORT.
 #
-# Settings (environment): VM_DIR, VM_NAME, VM_DISK_SIZE, VM_MEM, VM_CPUS, VM_SSH_PORT.
+# Settings (environment): VM_DIR, VM_NAME, VM_USER, VM_DISK_SIZE, VM_MEM, VM_CPUS, VM_SSH_PORT.
 
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 name="${VM_NAME:-ms-test}"
+vm_user="${VM_USER:-tester}"
+ssh_port="${VM_SSH_PORT:-2222}"
 dir="${VM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/machine-setup/vm}/$name"
 disk="$dir/disk.qcow2"
 vars="$dir/OVMF_VARS.fd"
 pidfile="$dir/qemu.pid"
+ssh_key="$dir/ssh_key"
 ovmf_code=/usr/share/OVMF/OVMF_CODE_4M.fd
 ovmf_vars_template=/usr/share/OVMF/OVMF_VARS_4M.fd
 
@@ -38,8 +45,44 @@ is_running() { [[ -f "$pidfile" ]] && kill -0 "$(cat "$pidfile")" 2>/dev/null; }
 require_vm() { [[ -f "$disk" ]] || die "no VM at $dir — run: $0 create"; }
 require_stopped() { ! is_running || die "VM is running; shut it down first"; }
 
+# Dedicated key for this VM only; never used for anything else.
+ensure_key() {
+  [[ -f "$ssh_key" ]] || ssh-keygen -q -t ed25519 -N '' -C "machine-setup test VM ($name)" -f "$ssh_key"
+}
+
+# Read-only folder shared with the guest as 9p tag `vm-meta`: the public key and
+# a one-time setup script (no private material).
+ensure_share() {
+  ensure_key
+  mkdir -p "$dir/share"
+  cp "$ssh_key.pub" "$dir/share/ssh_key.pub"
+  cat >"$dir/share/setup-ssh.sh" <<'SETUP'
+#!/usr/bin/env bash
+# One-time test-VM setup: SSH server, the VM's dedicated key, passwordless sudo.
+# Test VM only — never run this on a real machine.
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+sudo apt-get install -y openssh-server
+install -d -m 700 "$HOME/.ssh"
+touch "$HOME/.ssh/authorized_keys" && chmod 600 "$HOME/.ssh/authorized_keys"
+grep -qxF "$(cat "$here/ssh_key.pub")" "$HOME/.ssh/authorized_keys" || cat "$here/ssh_key.pub" >>"$HOME/.ssh/authorized_keys"
+echo "$USER ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/90-test-vm >/dev/null
+sudo chmod 440 /etc/sudoers.d/90-test-vm
+echo "SSH test access enabled. Shut down and snapshot the VM."
+SETUP
+}
+
+guest_ssh() {
+  ensure_key
+  ssh -i "$ssh_key" -p "$ssh_port" \
+    -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+    -o UserKnownHostsFile="$dir/known_hosts" -o ConnectTimeout=5 \
+    "$vm_user@127.0.0.1" "$@"
+}
+
 boot() {
   require_vm
+  ensure_share
   is_running && die "VM is already running (pid $(cat "$pidfile"))"
   qemu-system-x86_64 \
     -name "$name" \
@@ -48,10 +91,10 @@ boot() {
     -drive if=pflash,format=raw,readonly=on,file="$ovmf_code" \
     -drive if=pflash,format=raw,file="$vars" \
     -drive file="$disk",if=virtio,format=qcow2,discard=unmap \
-    -nic user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:"${VM_SSH_PORT:-2222}"-:22 \
-    -device virtio-vga -device virtio-tablet-pci -device virtio-keyboard-pci \
-    -display gtk \
+    -nic user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:"$ssh_port"-:22 \
+    -device virtio-vga -device qemu-xhci -device usb-tablet -device usb-kbd \
     -virtfs local,path="$repo_root",mount_tag=machine-setup,security_model=none,readonly=on \
+    -virtfs local,path="$dir/share",mount_tag=vm-meta,security_model=none,readonly=on \
     -pidfile "$pidfile" \
     "$@"
 }
@@ -65,14 +108,49 @@ case "$cmd" in
     mkdir -p "$dir"
     qemu-img create -q -f qcow2 "$disk" "${VM_DISK_SIZE:-80G}"
     cp "$ovmf_vars_template" "$vars"
+    ensure_key
     echo "Created $name at $dir"
     ;;
   install)
     iso="${1:-}"; [[ -f "$iso" ]] || die "usage: $0 install ISO"
-    boot -drive file="$iso",media=cdrom,readonly=on
+    boot -display gtk -drive file="$iso",media=cdrom,readonly=on
     ;;
   run)
-    boot
+    boot -display gtk
+    ;;
+  start)
+    boot -display none -daemonize
+    echo "Started $name headless (SSH on 127.0.0.1:$ssh_port)"
+    ;;
+  stop)
+    is_running || { echo "VM is not running"; exit 0; }
+    guest_ssh sudo -n systemctl poweroff >/dev/null 2>&1 || true
+    for _ in $(seq 1 60); do is_running || { echo "Stopped $name"; exit 0; }; sleep 2; done
+    die "guest did not shut down within 2 minutes"
+    ;;
+  ssh)
+    is_running || die "VM is not running"
+    guest_ssh "$@"
+    ;;
+  wait-ssh)
+    is_running || die "VM is not running"
+    for _ in $(seq 1 90); do
+      guest_ssh true 2>/dev/null && { echo "SSH ready"; exit 0; }
+      sleep 2
+    done
+    die "guest did not accept SSH within 3 minutes"
+    ;;
+  ssh-setup)
+    require_vm; ensure_share
+    cat <<'EOF'
+Boot the VM with `run`, then in a terminal inside the guest (as the test user):
+
+  sudo mkdir -p /mnt/vm-meta && sudo mount -t 9p -o trans=virtio,ro vm-meta /mnt/vm-meta && bash /mnt/vm-meta/setup-ssh.sh
+
+It installs an SSH server, authorises this VM's dedicated key, and gives the test
+user passwordless sudo so tests can run unattended (test VM only). Then shut the
+guest down and save a snapshot.
+EOF
     ;;
   snapshot)
     snap="${1:-}"; [[ -n "$snap" ]] || die "usage: $0 snapshot NAME"
@@ -91,7 +169,7 @@ case "$cmd" in
     ;;
   list)
     require_vm
-    qemu-img snapshot -l "$disk"
+    qemu-img snapshot -U -l "$disk"
     ;;
   destroy)
     require_vm; require_stopped

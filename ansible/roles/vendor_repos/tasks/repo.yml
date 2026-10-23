@@ -1,91 +1,111 @@
 # Configure one vendor apt repository (`vendor_repos_repo`). Also used directly by other roles
 # via include_role/tasks_from for repositories that only some hosts need.
+#
+# Repositories marked `self_managed` belong to packages that write their own source
+# definition (same filename) and keyring when installed. For those, the verified
+# definition below only bootstraps the first install; once the packages are present
+# the vendor's file is left alone, so the two never overwrite each other.
 
-- name: "Ensure key directories exist — {{ vendor_repos_repo.name }}"
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: directory
-    mode: "0755"
-  loop:
-    - "{{ vendor_repos_key_staging_dir }}"
-    - /etc/apt/keyrings
+- name: "Gather installed packages — {{ vendor_repos_repo.name }}"
+  ansible.builtin.package_facts:
+  when:
+    - vendor_repos_repo.self_managed | default(false)
+    - ansible_facts.packages is not defined
 
-- name: "Download signing key to staging — {{ vendor_repos_repo.name }}"
-  ansible.builtin.get_url:
-    url: "{{ vendor_repos_repo.key_url }}"
-    dest: "{{ vendor_repos_key_staging_dir }}/{{ vendor_repos_repo.name }}.{{ vendor_repos_repo.key_format }}"
-    mode: "0644"
-    force: true
-
-- name: "Read primary key fingerprints — {{ vendor_repos_repo.name }}"
-  ansible.builtin.shell:
-    cmd: >-
-      set -o pipefail;
-      gpg --show-keys --with-colons
-      '{{ vendor_repos_key_staging_dir }}/{{ vendor_repos_repo.name }}.{{ vendor_repos_repo.key_format }}'
-      | awk -F: '$1=="pub"{p=1;next} $1=="fpr"&&p{print $10;p=0}'
-    executable: /bin/bash
-  register: vendor_repos_key_fprs
-  changed_when: false
-
-- name: "Verify key fingerprints — {{ vendor_repos_repo.name }}"
-  ansible.builtin.assert:
-    that:
-      - vendor_repos_key_fprs.stdout_lines | length > 0
-      - vendor_repos_key_fprs.stdout_lines | difference(vendor_repos_repo.fingerprints) | length == 0
-    fail_msg: >-
-      Signing key for {{ vendor_repos_repo.name }} does not match the pinned fingerprints.
-      Served: {{ vendor_repos_key_fprs.stdout_lines }}. Pinned: {{ vendor_repos_repo.fingerprints }}.
-      Verify the change with the vendor before updating `fingerprints`.
-    quiet: true
-
-- name: "Install verified key — {{ vendor_repos_repo.name }}"
-  ansible.builtin.copy:
-    src: "{{ vendor_repos_key_staging_dir }}/{{ vendor_repos_repo.name }}.{{ vendor_repos_repo.key_format }}"
-    dest: "/etc/apt/keyrings/{{ vendor_repos_repo.name }}.{{ vendor_repos_repo.key_format }}"
-    remote_src: true
-    mode: "0644"
-  register: vendor_repos_key
-
-- name: "Remove legacy source definitions — {{ vendor_repos_repo.name }}"
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: absent
-  loop: "{{ vendor_repos_repo.legacy_files | default([]) }}"
-  register: vendor_repos_legacy
-
-- name: "Write supporting files — {{ vendor_repos_repo.name }}"
-  ansible.builtin.copy:
-    dest: "{{ item.dest }}"
-    content: "{{ item.content }}"
-    mode: "0644"
-  loop: "{{ vendor_repos_repo.files | default([]) }}"
-  loop_control:
-    label: "{{ item.dest }}"
-
-- name: "Preseed debconf answers — {{ vendor_repos_repo.name }}"
-  ansible.builtin.debconf:
-    name: "{{ item.name }}"
-    question: "{{ item.question }}"
-    vtype: "{{ item.vtype }}"
-    value: "{{ item.value }}"
-  loop: "{{ vendor_repos_repo.debconf | default([]) }}"
-  loop_control:
-    label: "{{ item.question }}"
-
-- name: "Define repository — {{ vendor_repos_repo.name }}"
-  ansible.builtin.deb822_repository:
-    name: "{{ vendor_repos_repo.name }}"
-    types: deb
-    uris: "{{ vendor_repos_repo.uris }}"
-    suites: "{{ vendor_repos_repo.suites }}"
-    components: "{{ vendor_repos_repo.components | default(omit) }}"
-    architectures: "{{ vendor_repos_repo.architectures | default(omit) }}"
-    signed_by: "/etc/apt/keyrings/{{ vendor_repos_repo.name }}.{{ vendor_repos_repo.key_format }}"
-  register: vendor_repos_source
-
-- name: "Record whether the apt cache needs refreshing — {{ vendor_repos_repo.name }}"
+- name: "Decide whether the vendor package now owns its source — {{ vendor_repos_repo.name }}"
   ansible.builtin.set_fact:
-    vendor_repos_changed: >-
-      {{ (vendor_repos_changed | default(false)) or (vendor_repos_key is changed)
-         or (vendor_repos_legacy is changed) or (vendor_repos_source is changed) }}
+    vendor_repos_handed_over: >-
+      {{ (vendor_repos_repo.self_managed | default(false))
+         and (vendor_repos_repo.packages | reject('in', ansible_facts.packages | default({})) | list | length == 0) }}
+
+- name: "Bootstrap verified repository — {{ vendor_repos_repo.name }}"
+  when: not vendor_repos_handed_over
+  block:
+    - name: "Ensure key directories exist — {{ vendor_repos_repo.name }}"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ vendor_repos_key_staging_dir }}"
+        - /etc/apt/keyrings
+
+    - name: "Download signing key to staging — {{ vendor_repos_repo.name }}"
+      ansible.builtin.get_url:
+        url: "{{ vendor_repos_repo.key_url }}"
+        dest: "{{ vendor_repos_key_staging_dir }}/{{ vendor_repos_repo.name }}.{{ vendor_repos_repo.key_format }}"
+        mode: "0644"
+        force: true
+
+    - name: "Read primary key fingerprints — {{ vendor_repos_repo.name }}"
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail;
+          gpg --show-keys --with-colons
+          '{{ vendor_repos_key_staging_dir }}/{{ vendor_repos_repo.name }}.{{ vendor_repos_repo.key_format }}'
+          | awk -F: '$1=="pub"{p=1;next} $1=="fpr"&&p{print $10;p=0}'
+        executable: /bin/bash
+      register: vendor_repos_key_fprs
+      changed_when: false
+
+    - name: "Verify key fingerprints — {{ vendor_repos_repo.name }}"
+      ansible.builtin.assert:
+        that:
+          - vendor_repos_key_fprs.stdout_lines | length > 0
+          - vendor_repos_key_fprs.stdout_lines | difference(vendor_repos_repo.fingerprints) | length == 0
+        fail_msg: >-
+          Signing key for {{ vendor_repos_repo.name }} does not match the pinned fingerprints.
+          Served: {{ vendor_repos_key_fprs.stdout_lines }}. Pinned: {{ vendor_repos_repo.fingerprints }}.
+          Verify the change with the vendor before updating `fingerprints`.
+        quiet: true
+
+    - name: "Install verified key — {{ vendor_repos_repo.name }}"
+      ansible.builtin.copy:
+        src: "{{ vendor_repos_key_staging_dir }}/{{ vendor_repos_repo.name }}.{{ vendor_repos_repo.key_format }}"
+        dest: "/etc/apt/keyrings/{{ vendor_repos_repo.name }}.{{ vendor_repos_repo.key_format }}"
+        remote_src: true
+        mode: "0644"
+      register: vendor_repos_key
+
+    - name: "Remove legacy source definitions — {{ vendor_repos_repo.name }}"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: "{{ vendor_repos_repo.legacy_files | default([]) }}"
+      register: vendor_repos_legacy
+
+    - name: "Write supporting files — {{ vendor_repos_repo.name }}"
+      ansible.builtin.copy:
+        dest: "{{ item.dest }}"
+        content: "{{ item.content }}"
+        mode: "0644"
+      loop: "{{ vendor_repos_repo.files | default([]) }}"
+      loop_control:
+        label: "{{ item.dest }}"
+
+    - name: "Preseed debconf answers — {{ vendor_repos_repo.name }}"
+      ansible.builtin.debconf:
+        name: "{{ item.name }}"
+        question: "{{ item.question }}"
+        vtype: "{{ item.vtype }}"
+        value: "{{ item.value }}"
+      loop: "{{ vendor_repos_repo.debconf | default([]) }}"
+      loop_control:
+        label: "{{ item.question }}"
+
+    - name: "Define repository — {{ vendor_repos_repo.name }}"
+      ansible.builtin.deb822_repository:
+        name: "{{ vendor_repos_repo.name }}"
+        types: deb
+        uris: "{{ vendor_repos_repo.uris }}"
+        suites: "{{ vendor_repos_repo.suites }}"
+        components: "{{ vendor_repos_repo.components | default(omit) }}"
+        architectures: "{{ vendor_repos_repo.architectures | default(omit) }}"
+        signed_by: "/etc/apt/keyrings/{{ vendor_repos_repo.name }}.{{ vendor_repos_repo.key_format }}"
+      register: vendor_repos_source
+
+    - name: "Record whether the apt cache needs refreshing — {{ vendor_repos_repo.name }}"
+      ansible.builtin.set_fact:
+        vendor_repos_changed: >-
+          {{ (vendor_repos_changed | default(false)) or (vendor_repos_key is changed)
+             or (vendor_repos_legacy is changed) or (vendor_repos_source is changed) }}
