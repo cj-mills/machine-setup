@@ -28,6 +28,9 @@ extra_packages:
 #   debconf       answers preseeded before package install
 #   legacy_files  repo definitions from earlier manual installs, removed so apt
 #                 does not see the same source twice with different keys
+#   self_managed  the package writes its own source file (same name) and keyring
+#                 on install; the verified definition only bootstraps the first
+#                 install, after which the vendor's file is left alone
 vendor_repos_list:
   - name: google-chrome
     key_url: https://dl.google.com/linux/linux_signing_key.pub
@@ -37,12 +40,7 @@ vendor_repos_list:
     suites: stable
     components: main
     architectures: amd64
-    # Stop Chrome's package from writing its own competing source definition.
-    files:
-      - dest: /etc/default/google-chrome
-        content: |
-          repo_add_once="false"
-          repo_reenable_on_distupgrade="false"
+    self_managed: true
     legacy_files: [/etc/apt/sources.list.d/google-chrome.list]
     packages: [google-chrome-stable]
 
@@ -118,6 +116,7 @@ vendor_repos_list:
     uris: "https://downloads.1password.com/linux/debian/{{ deb_arch }}"
     suites: stable
     components: main
+    self_managed: true
     packages: [1password, 1password-cli]
 
   - name: claude-desktop

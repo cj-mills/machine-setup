@@ -21,3 +21,19 @@
   ansible.builtin.apt:
     name: "{{ vendor_repos_list | map(attribute='packages') | flatten }}"
     state: present
+
+# Self-managed packages write their own source and keyring during install, so the
+# handover finishes in the same run that installs them.
+- name: Refresh installed package facts
+  ansible.builtin.package_facts:
+  when: vendor_repos_list | selectattr('self_managed', 'defined') | selectattr('self_managed') | list | length > 0
+
+- name: Retire bootstrap keys of self-managed repositories
+  ansible.builtin.include_tasks: retire.yml
+  loop: >-
+    {{ vendor_repos_list | selectattr('self_managed', 'defined') | selectattr('self_managed')
+       | list }}
+  loop_control:
+    loop_var: vendor_repos_repo
+    label: "{{ vendor_repos_repo.name }}"
+  when: vendor_repos_repo.packages | reject('in', ansible_facts.packages) | list | length == 0
