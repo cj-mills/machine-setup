@@ -19,8 +19,10 @@ Then sign in to 1Password (enable CLI integration and the SSH agent under
 Settings → Developer) and run:
 
 ```bash
-chezmoi apply
+~/.local/bin/chezmoi apply
 ```
+
+(`~/.local/bin` joins `PATH` at your next login; after that, plain `chezmoi` works.)
 
 ## Day to day
 

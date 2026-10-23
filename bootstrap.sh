@@ -20,7 +20,10 @@ fi
 
 echo "==> Installing prerequisites"
 sudo apt-get update
-sudo apt-get install -y git curl ansible-core python3-debian
+# --no-install-recommends: ansible-core otherwise pulls in the full `ansible`
+# collection bundle and WinRM/Kerberos libraries; collections come from
+# ansible/requirements.yml instead.
+sudo apt-get install -y --no-install-recommends git curl ansible-core python3-debian
 
 if ! command -v chezmoi >/dev/null 2>&1; then
   echo "==> Installing chezmoi to $bin_dir"
@@ -47,5 +50,6 @@ System layer done. Remaining steps:
   1. Reboot if the NVIDIA driver was installed.
   2. Open 1Password, sign in, and enable Settings → Developer → "Integrate with 1Password CLI"
      and "Use the SSH agent".
-  3. Run: chezmoi apply
+  3. Run: ~/.local/bin/chezmoi apply
+     (~/.local/bin joins PATH at your next login; after that, plain `chezmoi` works.)
 EOF
