@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# Lay out a disk for a fresh Windows install: a new GPT with its own EFI system
-# partition and the Microsoft reserved partition, the rest left unallocated for
-# Windows Setup. Giving the Windows disk its own ESP up front is half of keeping
-# Windows' boot files off other drives; windows/machine-setup/ensure-own-esp.ps1
-# is the other half.
+# Wipe a disk to an empty GPT for a fresh Windows install, so Windows Setup sees one
+# block of unallocated space and creates its own partitions there (ESP, MSR,
+# Windows, recovery).
+#
+# Deliberately no pre-made ESP: Windows Setup (24H2+) creates its own ESP anyway,
+# and with two ESPs on the target disk it fails to service the boot files
+# ("Failed to get system partition", 0x80073B92), as found in the test VM.
+# Keeping Windows' boot files off other drives is handled after installation by
+# windows/machine-setup/ensure-own-esp.ps1.
 #
 # Works on a disk image file (test VM) or a whole disk. A whole disk must be given
 # by its /dev/disk/by-id path and is only erased after typing its name back.
@@ -11,9 +15,6 @@
 # Usage: scripts/prepare-windows-disk.sh DISK
 
 set -euo pipefail
-
-esp_size_mib=512
-msr_size_mib=16
 
 die() { echo "error: $*" >&2; exit 1; }
 
@@ -34,25 +35,18 @@ if [[ -b "$disk" ]]; then
   echo "  $name"
   read -r answer
   [[ "$answer" == "$name" ]] || die "name did not match; nothing changed"
+  # Clear filesystem signatures in existing partitions too, so nothing stale
+  # (e.g. an old ESP) is recognised later.
+  for part in "$disk"-part*; do [[ -b "$part" ]] && wipefs -a -q "$part"; done
 elif [[ ! -f "$disk" ]]; then
   die "$disk is neither a block device nor an image file"
 fi
 
 sgdisk --zap-all "$disk" >/dev/null
-sgdisk \
-  -n "1:0:+${esp_size_mib}M" -t 1:ef00 -c "1:EFI system partition" \
-  -n "2:0:+${msr_size_mib}M" -t 2:0c01 -c "2:Microsoft reserved partition" \
-  "$disk" >/dev/null
-
-esp_start=$(sgdisk -i 1 "$disk" | awk '/First sector/ {print $3}')
+sgdisk --clear "$disk" >/dev/null
 if [[ -b "$disk" ]]; then
   partprobe "$disk" 2>/dev/null || true
   udevadm settle
-  mkfs.vfat -F 32 -s 8 -n SYSTEM "${disk}-part1" >/dev/null
-else
-  # Image file: write the filesystem in place at the partition's offset.
-  mkfs.vfat -F 32 -s 8 -n SYSTEM --offset "$esp_start" "$disk" $((esp_size_mib * 1024)) >/dev/null
 fi
 
-sgdisk -p "$disk" | sed -n '/^Number/,$p'
-echo "Prepared $disk: ESP (${esp_size_mib} MiB, FAT32) + MSR; remaining space left for Windows Setup."
+echo "Prepared $disk: empty GPT; all space left for Windows Setup."
