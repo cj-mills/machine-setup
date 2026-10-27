@@ -27,11 +27,12 @@
 #              MACHINE_SETUP_REPO=file:///mnt/machine-setup bash /mnt/machine-setup/bootstrap.sh
 #
 #   Windows: Secure Boot firmware with Microsoft keys, a software TPM (swtpm), SATA
-#            disks and an e1000e NIC (in-box drivers). The target disk is laid out by
+#            disks and an e1000e NIC (in-box drivers). The target disk is wiped by
 #            scripts/prepare-windows-disk.sh, and a "decoy" disk with a Linux-style EFI
 #            system partition is attached first, reproducing the workstation's
-#            boot-file hazard; VM_DECOY=0 boots without it, proving Windows boots from
-#            its own disk. During `install`, windows/ is served as a read-only USB drive
+#            boot-file hazard. The install procedure hides it first
+#            (scripts/esp-visibility.sh hide <vm dir>/decoy.raw); VM_DECOY=0 boots
+#            without the decoy, proving Windows boots from its own disk. During `install`, windows/ is served as a read-only USB drive
 #            (autounattend.xml + machine-setup\) plus a test-only hook enabling SSH
 #            with this VM's dedicated key.
 #
@@ -53,7 +54,8 @@ vm_user="${VM_USER:-$default_user}"
 ssh_port="${VM_SSH_PORT:-$default_port}"
 disk="$dir/disk.qcow2"
 data_disk="$dir/data.qcow2"   # Linux: optional second disk, e.g. for the mounts role
-decoy_disk="$dir/decoy.qcow2" # Windows: disk with a Linux-style ESP, attached first
+decoy_disk="$dir/decoy.raw"   # Windows: disk with a Linux-style ESP, attached first (raw,
+                              # so scripts/esp-visibility.sh can hide/show its ESP)
 vars="$dir/OVMF_VARS.fd"
 pidfile="$dir/qemu.pid"
 ssh_key="$dir/ssh_key"
@@ -162,7 +164,7 @@ boot_windows() {
   start_tpm
   local decoy=()
   if [[ "${VM_DECOY:-1}" != 0 ]]; then
-    decoy=(-drive file="$decoy_disk",if=none,id=decoy,format=qcow2
+    decoy=(-drive file="$decoy_disk",if=none,id=decoy,format=raw
            -device ide-hd,drive=decoy,bus=ide.0)
   fi
   qemu-system-x86_64 \
@@ -218,11 +220,10 @@ case "$cmd" in
       "$repo_root/scripts/prepare-windows-disk.sh" "$dir/disk.raw" >/dev/null
       qemu-img convert -q -O qcow2 "$dir/disk.raw" "$disk" && rm -f "$dir/disk.raw"
       # Decoy: a Linux-style drive whose ESP Windows Setup may try to use.
-      truncate -s 2G "$dir/decoy.raw"
-      sgdisk -n 1:0:+512M -t 1:ef00 -c "1:EFI system partition" -n 2:0:0 -t 2:8300 "$dir/decoy.raw" >/dev/null
-      mkfs.vfat -F 32 -s 8 -n ESP --offset "$(sgdisk -i 1 "$dir/decoy.raw" | awk '/First sector/ {print $3}')" \
-        "$dir/decoy.raw" $((512 * 1024)) >/dev/null
-      qemu-img convert -q -O qcow2 "$dir/decoy.raw" "$decoy_disk" && rm -f "$dir/decoy.raw"
+      truncate -s 2G "$decoy_disk"
+      sgdisk -n 1:0:+512M -t 1:ef00 -c "1:EFI system partition" -n 2:0:0 -t 2:8300 "$decoy_disk" >/dev/null
+      mkfs.vfat -F 32 -s 8 -n ESP --offset "$(sgdisk -i 1 "$decoy_disk" | awk '/First sector/ {print $3}')" \
+        "$decoy_disk" $((512 * 1024)) >/dev/null
     else
       qemu-img create -q -f qcow2 "$disk" "${VM_DISK_SIZE:-80G}"
     fi
