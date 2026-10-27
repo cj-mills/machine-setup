@@ -11,12 +11,14 @@
   Output contains personal data (paths, account names). Keep it out of git: inside a
   repository checkout it goes to inventory\raw\, which is git-ignored.
 
-  Run as your normal user. Running elevated additionally captures Windows optional
-  features and page-file settings that need admin rights.
+  Per-user state (HKCU installs, Store apps, profile folders) belongs to the account
+  that runs the script, so run it once in each account you use; snapshots land in
+  separate folders named after the account. Running elevated additionally captures
+  Windows optional features and Store apps for all accounts.
 
 .PARAMETER OutDir
-  Output folder. Defaults to inventory\raw\<computer>-<date> in a repository checkout,
-  otherwise a folder next to this script.
+  Output folder. Defaults to inventory\raw\<computer>-<user>-<date> in a repository
+  checkout, otherwise a folder next to this script.
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File .\snapshot-windows.ps1
@@ -25,7 +27,7 @@
 param([string]$OutDir)
 
 $ErrorActionPreference = 'Continue'
-$stamp = "$($env:COMPUTERNAME.ToLower())-$(Get-Date -Format yyyy-MM-dd)"
+$stamp = "$($env:COMPUTERNAME.ToLower())-$($env:USERNAME.ToLower())-$(Get-Date -Format yyyy-MM-dd)"
 if (-not $OutDir) {
     $repoInventory = Join-Path $PSScriptRoot '..\inventory'
     if (Test-Path $repoInventory) { $OutDir = Join-Path $repoInventory "raw\$stamp" }
@@ -95,9 +97,11 @@ Save 'system\path.txt' {
 if (Get-Command winget -ErrorAction SilentlyContinue) {
     Write-Host '  apps\winget-export.json'
     New-Item -ItemType Directory -Force -Path (Join-Path $OutDir 'apps') | Out-Null
-    winget export -o (Join-Path $OutDir 'apps\winget-export.json') --include-versions --disable-interactivity 2>&1 |
+    # Only the community `winget` source: the `msstore` source requires accepting
+    # Store terms, which this read-only script never does on the user's behalf.
+    winget export -o (Join-Path $OutDir 'apps\winget-export.json') --source winget --include-versions --disable-interactivity 2>&1 |
         Out-File -FilePath (Join-Path $OutDir 'apps\winget-export.log') -Encoding utf8
-    Save 'apps\winget-list.txt' { winget list --disable-interactivity }
+    Save 'apps\winget-list.txt' { winget list --source winget --disable-interactivity }
 }
 SaveCsv 'apps\installed-programs.csv' {
     $keys = 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
@@ -112,6 +116,16 @@ SaveCsv 'apps\installed-programs.csv' {
 SaveCsv 'apps\store-apps.csv' {
     Get-AppxPackage | Where-Object { -not $_.IsFramework -and $_.SignatureKind -eq 'Store' } |
         Select-Object Name, Version, Publisher | Sort-Object Name
+}
+if ($isAdmin) {
+    SaveCsv 'apps\store-apps-all-users.csv' {
+        Get-AppxPackage -AllUsers | Where-Object { -not $_.IsFramework -and $_.SignatureKind -eq 'Store' } |
+            ForEach-Object {
+                $pkg = $_
+                $users = ($pkg.PackageUserInformation | ForEach-Object { $_.UserSecurityId.Username }) -join '; '
+                [pscustomobject]@{ Name = $pkg.Name; Version = $pkg.Version; Users = $users }
+            } | Sort-Object Name
+    }
 }
 Save 'apps\steam-libraries.txt' {
     $vdf = Join-Path ${env:ProgramFiles(x86)} 'Steam\steamapps\libraryfolders.vdf'
