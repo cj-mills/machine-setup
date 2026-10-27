@@ -126,6 +126,7 @@ filesystem". Mounts are managed by the `mounts` role from `host_vars`.
 | 2026-10-26 | Linux drive uses LVM with deliberate under-allocation: ext4 grows online, shrinking needs a live USB, so free pool space serves both root growth and test-OS volumes. Rejected: plain partitions filling the drive, and unallocated space at the end of the drive. |
 | 2026-10-26 | Single admin account on the fresh Windows install with Administrator protection (or UAC "Always notify"). Rejected: separate standard and admin accounts, whose friction on a single-user development machine splits per-user installs across profiles. |
 | 2026-10-26 | Data drives are mounted at purpose-named paths by UUID via the `mounts` role. Old paths in use while converging are retired from fstab without unmounting and become compatibility symlinks after the next boot. |
+| 2026-10-27 | Windows AI stack (Windows App SDK / Windows ML runtimes, Foundry Local) is installed per project, not in the base Windows setup: apps declare these runtimes as dependencies, and tutorials must document installing them, so a machine without them pre-installed matches what readers start from. A runtime moves into the base config once it's in daily use across projects. |
 
 ## Repository layout
 

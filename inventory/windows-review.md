@@ -19,29 +19,29 @@ pip, conda) stay in projects, as on Linux.
 
 | Item | winget ID | Decision | Notes |
 |---|---|---|---|
-| Brave | Brave.Brave *(verify)* | ? | Edge is built in |
-| Google Chrome | Google.Chrome *(verify)* | ? | |
-| Firefox | Mozilla.Firefox *(verify)* | ? | |
+| Brave | Brave.Brave *(verify)* | keep | Same browsers as Linux; Edge is built in |
+| Google Chrome | Google.Chrome *(verify)* | keep |  |
+| Firefox | Mozilla.Firefox *(verify)* | keep |  |
 | 1Password + CLI | AgileBits.1Password, AgileBits.1Password.CLI *(verify)* | keep | SSH agent, secrets, as on Linux |
-| Claude Desktop | *(verify)* | ? | |
+| Claude Desktop | *(verify)* | keep | As on Linux |
 | Microsoft 365 (Office) | — | drop | Try ArtCraft's document/spreadsheet/slides apps first |
 | ArtCraft | vendor installer | keep | Windows/macOS releases; Linux is build-from-source |
-| Typora | appmakes.Typora | ? | |
+| Typora | appmakes.Typora | keep | Paid license |
 | Blender | BlenderFoundation.Blender | keep | Pin 5.2 LTS, matching Linux |
-| SumatraPDF | SumatraPDF.SumatraPDF | ? | `Personal` account |
-| VLC | VideoLAN.VLC | ? | |
-| MakeMKV | GuinpinSoft.MakeMKV | ? | |
-| mGBA | JeffreyPfau.mGBA | ? | |
-| Amazon Music | Amazon.Music | ? | `Personal` account; starts at login |
-| TuneFab music converter | — | ? | Updater left in AppData; app itself not installed |
+| SumatraPDF | SumatraPDF.SumatraPDF | drop | Try ArtCraft's PDF app first |
+| VLC | VideoLAN.VLC | keep |  |
+| MakeMKV | GuinpinSoft.MakeMKV | drop | Reinstall if needed |
+| mGBA | JeffreyPfau.mGBA | drop | Reinstall if wanted |
+| Amazon Music | Amazon.Music | drop | `Personal` account; starts at login |
+| TuneFab music converter | — | drop | Updater left in AppData; app itself not installed |
 | Clipchamp | Store default | ? | |
-| PowerToys | Microsoft.PowerToys | ? | `Personal` account (preview build) |
-| 7-Zip | 7zip.7zip | ? | |
-| WizTree | AntibodySoftware.WizTree | ? | |
-| balenaEtcher | — | ? | Updater left in AppData; app itself not installed |
+| PowerToys | Microsoft.PowerToys | keep | In daily use |
+| 7-Zip | 7zip.7zip | drop | Windows 11 handles common archive formats |
+| WizTree | AntibodySoftware.WizTree | keep |  |
+| balenaEtcher | — | drop | Updater left in AppData; app itself not installed |
 | Samsung Magician | vendor installer | keep | SSD firmware/health (Windows-only) |
 | Private Internet Access | PrivateInternetAccess.PrivateInternetAccess | keep | |
-| Logitech software | — | ? | Logi Download Assistant at startup; which device needs it? |
+| Logitech software | — | drop | Installed for the mouse; not used |
 | Futuremark SystemInfo | — | drop | Leftover from a benchmark |
 | Steam | Valve.Steam | keep | One Windows library on the Windows drive (today: four libraries, one on a drive now ext4) |
 
@@ -59,14 +59,14 @@ pip, conda) stay in projects, as on Linux.
 |---|---|---|---|
 | Visual Studio | *(verify; current Community edition)* | keep | Only remnants today. Workloads: Game development with C++ (Unreal), .NET desktop, Windows App SDK |
 | Windows SDKs (17763, 22621, 26100) | — | — | Pulled in by Visual Studio workloads; nothing installed separately |
-| IIS Express, Web Deploy, Azure Functions tools | Microsoft.WebDeploy | ? | From Visual Studio web/Azure workloads |
-| Microsoft MPI | Microsoft.msmpi | ? | On the machine PATH; usually pulled in by an ML/HPC tool |
+| IIS Express, Web Deploy, Azure Functions tools | Microsoft.WebDeploy | drop | Origin unknown; reinstall if a project needs it |
+| Microsoft MPI | Microsoft.msmpi | drop | Origin unknown; reinstall if a project needs it |
 | Chocolatey | — | drop | Superseded by winget |
 | Git | Git.Git *(verify)* | keep | Not installed today |
-| GitHub Desktop | GitHub.GitHubDesktop | ? | `Personal` account |
+| GitHub Desktop | GitHub.GitHubDesktop | keep | `Personal` account |
 | VS Code | Microsoft.VisualStudioCode | keep | `Personal` account (user install) |
-| CMake | Kitware.CMake *(verify)* | ? | On `Personal`'s PATH; Visual Studio's C++ workload also bundles one |
-| Node.js / npm globals | via mise | ? | `Personal` has an npm global folder; mise runs on Windows too, matching Linux |
+| CMake | Kitware.CMake *(verify)* | keep | Standalone, for project builds outside Visual Studio (like apt cmake on Linux) |
+| Node.js / npm globals | via mise | keep | `Personal` has an npm global folder; mise runs on Windows too, matching Linux |
 | Miniforge3 | CondaForge.Miniforge3 | keep | `Personal` account; conda for project environments, as on Linux |
 | Mambaforge | — | drop | Old (2023) and superseded by Miniforge |
 | uv | via mise | keep | As on Linux |
@@ -76,7 +76,7 @@ pip, conda) stay in projects, as on Linux.
 | Docker Desktop | Docker.DockerDesktop *(verify)* | keep | WSL2 backend with GPU; the reference setup for Windows users of your containers; no autostart |
 | Unity Hub | Unity.UnityHub *(verify)* | keep | 8 GB Unity cache in `Personal`; editors per project |
 | Epic Games Launcher + Unreal Engine | EpicGames.EpicGamesLauncher *(verify)* | keep | 13 GB Unreal cache in `Personal`; engine versions per project |
-| Windows AI stack (Windows App SDK / Windows ML, Foundry Local) | — | ? | Per-project SDKs; machine-level runtime only if needed |
+| Windows AI stack (Windows App SDK / Windows ML, Foundry Local) | — | per project | Installed when the first project needs it; see decision log |
 
 ## Windows features
 
