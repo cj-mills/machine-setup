@@ -237,9 +237,12 @@ case "$cmd" in
       ensure_answer_media
       case "$media" in
         *.iso) installer=(-drive file="$media",media=cdrom,readonly=on) ;;
-        *) # USB-stick image; guest writes go to a throwaway overlay.
+        *) # USB-stick image; guest writes go to a throwaway overlay. No bootindex:
+           # the firmware's own boot order applies, as on real hardware, so after
+           # Setup's first reboot the new Windows Boot Manager entry wins and the
+           # installer isn't booted a second time.
            installer=(-drive file="$media",if=none,id=installer,snapshot=on
-                      -device usb-storage,drive=installer,removable=on,bootindex=0) ;;
+                      -device usb-storage,drive=installer,removable=on) ;;
       esac
       boot -display gtk "${installer[@]}" \
         -drive file=fat:16:"$dir/answer",if=none,id=answer,format=raw,readonly=on \
