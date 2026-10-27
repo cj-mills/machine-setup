@@ -208,82 +208,86 @@ guest_ssh() {
     "$vm_user@127.0.0.1" "$@"
 }
 
-cmd="${1:-}"; shift || true
-case "$cmd" in
-  create)
-    [[ -e "$disk" ]] && die "VM already exists at $dir"
-    [[ -r "$ovmf_code" && -r "$ovmf_vars_template" ]] || die "OVMF firmware not found (apt install ovmf)"
-    [[ -w /dev/kvm ]] || die "/dev/kvm is not writable by $(id -un) (add yourself to the kvm group)"
-    mkdir -p "$dir"
-    if [[ "$os" == windows ]]; then
-      command -v swtpm >/dev/null || die "swtpm not found (apt install swtpm swtpm-tools)"
-      # Target disk, laid out exactly as the real Windows drive will be.
-      truncate -s "${VM_DISK_SIZE:-128G}" "$dir/disk.raw"
-      "$repo_root/scripts/prepare-windows-disk.sh" "$dir/disk.raw" >/dev/null
-      qemu-img convert -q -O qcow2 "$dir/disk.raw" "$disk" && rm -f "$dir/disk.raw"
-      # Decoy: a Linux-style drive whose ESP Windows Setup may try to use.
-      truncate -s 2G "$decoy_disk"
-      sgdisk -n 1:0:+512M -t 1:ef00 -c "1:EFI system partition" -n 2:0:0 -t 2:8300 "$decoy_disk" >/dev/null
-      mkfs.vfat -F 32 -s 8 -n ESP --offset "$(sgdisk -i 1 "$decoy_disk" | awk '/First sector/ {print $3}')" \
-        "$decoy_disk" $((512 * 1024)) >/dev/null
-    else
-      qemu-img create -q -f qcow2 "$disk" "${VM_DISK_SIZE:-80G}"
-    fi
-    cp "$ovmf_vars_template" "$vars"
-    echo "$os" >"$dir/os"
-    ensure_key
-    echo "Created $os VM $name at $dir"
-    ;;
-  install)
-    media="${1:-}"; [[ -f "$media" ]] || die "usage: $0 install MEDIA"
-    if [[ "$os" == windows ]]; then
-      ensure_answer_media
-      case "$media" in
-        *.iso) installer=(-drive file="$media",media=cdrom,readonly=on) ;;
-        *) # USB-stick image; guest writes go to a throwaway overlay. No bootindex:
-           # the firmware's own boot order applies, as on real hardware, so after
-           # Setup's first reboot the new Windows Boot Manager entry wins and the
-           # installer isn't booted a second time.
-           installer=(-drive file="$media",if=none,id=installer,snapshot=on
-                      -device usb-storage,drive=installer,removable=on) ;;
-      esac
-      boot -display gtk "${installer[@]}" \
-        -drive file=fat:16:"$dir/answer",if=none,id=answer,format=raw,readonly=on \
-        -device usb-storage,drive=answer,removable=on
-    else
-      boot -display gtk -drive file="$media",media=cdrom,readonly=on
-    fi
-    ;;
-  run)
-    boot -display gtk
-    ;;
-  start)
-    boot -display none -daemonize
-    echo "Started $name headless (SSH on 127.0.0.1:$ssh_port)"
-    ;;
-  stop)
-    is_running || { echo "VM is not running"; exit 0; }
-    guest_poweroff >/dev/null 2>&1 || true
-    for _ in $(seq 1 90); do is_running || { echo "Stopped $name"; exit 0; }; sleep 2; done
-    die "guest did not shut down within 3 minutes"
-    ;;
-  ssh)
-    is_running || die "VM is not running"
-    guest_ssh "$@"
-    ;;
-  wait-ssh)
-    is_running || die "VM is not running"
-    for _ in $(seq 1 150); do
-      guest_ssh exit 0 2>/dev/null && { echo "SSH ready"; exit 0; }
-      sleep 2
-    done
-    die "guest did not accept SSH within 5 minutes"
-    ;;
-  ssh-setup)
-    require_vm
-    [[ "$os" == linux ]] || die "Windows VMs enable SSH automatically during install (test hook)"
-    ensure_share
-    cat <<'EOF'
+# Everything below runs inside main(), which bash parses completely before running:
+# editing this file while a previous invocation is still running (e.g. a VM in the
+# foreground) must not change what that invocation does next.
+main() {
+  cmd="${1:-}"; shift || true
+  case "$cmd" in
+    create)
+      [[ -e "$disk" ]] && die "VM already exists at $dir"
+      [[ -r "$ovmf_code" && -r "$ovmf_vars_template" ]] || die "OVMF firmware not found (apt install ovmf)"
+      [[ -w /dev/kvm ]] || die "/dev/kvm is not writable by $(id -un) (add yourself to the kvm group)"
+      mkdir -p "$dir"
+      if [[ "$os" == windows ]]; then
+        command -v swtpm >/dev/null || die "swtpm not found (apt install swtpm swtpm-tools)"
+        # Target disk, laid out exactly as the real Windows drive will be.
+        truncate -s "${VM_DISK_SIZE:-128G}" "$dir/disk.raw"
+        "$repo_root/scripts/prepare-windows-disk.sh" "$dir/disk.raw" >/dev/null
+        qemu-img convert -q -O qcow2 "$dir/disk.raw" "$disk" && rm -f "$dir/disk.raw"
+        # Decoy: a Linux-style drive whose ESP Windows Setup may try to use.
+        truncate -s 2G "$decoy_disk"
+        sgdisk -n 1:0:+512M -t 1:ef00 -c "1:EFI system partition" -n 2:0:0 -t 2:8300 "$decoy_disk" >/dev/null
+        mkfs.vfat -F 32 -s 8 -n ESP --offset "$(sgdisk -i 1 "$decoy_disk" | awk '/First sector/ {print $3}')" \
+          "$decoy_disk" $((512 * 1024)) >/dev/null
+      else
+        qemu-img create -q -f qcow2 "$disk" "${VM_DISK_SIZE:-80G}"
+      fi
+      cp "$ovmf_vars_template" "$vars"
+      echo "$os" >"$dir/os"
+      ensure_key
+      echo "Created $os VM $name at $dir"
+      ;;
+    install)
+      media="${1:-}"; [[ -f "$media" ]] || die "usage: $0 install MEDIA"
+      if [[ "$os" == windows ]]; then
+        ensure_answer_media
+        case "$media" in
+          *.iso) installer=(-drive file="$media",media=cdrom,readonly=on) ;;
+          *) # USB-stick image; guest writes go to a throwaway overlay. No bootindex:
+             # the firmware's own boot order applies, as on real hardware, so after
+             # Setup's first reboot the new Windows Boot Manager entry wins and the
+             # installer isn't booted a second time.
+             installer=(-drive file="$media",if=none,id=installer,snapshot=on
+                        -device usb-storage,drive=installer,removable=on) ;;
+        esac
+        boot -display gtk "${installer[@]}" \
+          -drive file=fat:16:"$dir/answer",if=none,id=answer,format=raw,readonly=on \
+          -device usb-storage,drive=answer,removable=on
+      else
+        boot -display gtk -drive file="$media",media=cdrom,readonly=on
+      fi
+      ;;
+    run)
+      boot -display gtk
+      ;;
+    start)
+      boot -display none -daemonize
+      echo "Started $name headless (SSH on 127.0.0.1:$ssh_port)"
+      ;;
+    stop)
+      is_running || { echo "VM is not running"; exit 0; }
+      guest_poweroff >/dev/null 2>&1 || true
+      for _ in $(seq 1 90); do is_running || { echo "Stopped $name"; exit 0; }; sleep 2; done
+      die "guest did not shut down within 3 minutes"
+      ;;
+    ssh)
+      is_running || die "VM is not running"
+      guest_ssh "$@"
+      ;;
+    wait-ssh)
+      is_running || die "VM is not running"
+      for _ in $(seq 1 150); do
+        guest_ssh exit 0 2>/dev/null && { echo "SSH ready"; exit 0; }
+        sleep 2
+      done
+      die "guest did not accept SSH within 5 minutes"
+      ;;
+    ssh-setup)
+      require_vm
+      [[ "$os" == linux ]] || die "Windows VMs enable SSH automatically during install (test hook)"
+      ensure_share
+      cat <<'EOF'
 Boot the VM with `run`, then in a terminal inside the guest (as the test user):
 
   sudo mkdir -p /mnt/vm-meta && sudo mount -t 9p -o trans=virtio,ro vm-meta /mnt/vm-meta && bash /mnt/vm-meta/setup-ssh.sh
@@ -292,43 +296,46 @@ It installs an SSH server, authorises this VM's dedicated key, and gives the tes
 user passwordless sudo so tests can run unattended (test VM only). Then shut the
 guest down and save a snapshot.
 EOF
-    ;;
-  snapshot)
-    snap="${1:-}"; [[ -n "$snap" ]] || die "usage: $0 snapshot NAME"
-    require_vm; require_stopped
-    qemu-img snapshot -c "$snap" "$disk"
-    cp "$vars" "$dir/OVMF_VARS.$snap.fd"
-    if [[ -d "$dir/tpm" ]]; then rm -rf "$dir/tpm.$snap"; cp -r "$dir/tpm" "$dir/tpm.$snap"; fi
-    echo "Saved snapshot '$snap'"
-    ;;
-  restore)
-    snap="${1:-}"; [[ -n "$snap" ]] || die "usage: $0 restore NAME"
-    require_vm; require_stopped
-    [[ -f "$dir/OVMF_VARS.$snap.fd" ]] || die "no snapshot named '$snap'"
-    qemu-img snapshot -a "$snap" "$disk"
-    cp "$dir/OVMF_VARS.$snap.fd" "$vars"
-    if [[ -d "$dir/tpm.$snap" ]]; then rm -rf "$dir/tpm"; cp -r "$dir/tpm.$snap" "$dir/tpm"; fi
-    echo "Restored snapshot '$snap'"
-    ;;
-  list)
-    require_vm
-    qemu-img snapshot -U -l "$disk"
-    ;;
-  data-disk)
-    size="${1:-}"; [[ -n "$size" ]] || die "usage: $0 data-disk SIZE (e.g. 10G)"
-    [[ "$os" == linux ]] || die "data-disk is for Linux VMs"
-    require_vm; require_stopped
-    rm -f "$data_disk"
-    qemu-img create -q -f qcow2 "$data_disk" "$size"
-    echo "Attached blank $size data disk (guest: /dev/vdb); replaces any previous one"
-    ;;
-  destroy)
-    require_vm; require_stopped
-    rm -rf -- "$dir"
-    echo "Deleted $name"
-    ;;
-  *)
-    sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'
-    exit 1
-    ;;
-esac
+      ;;
+    snapshot)
+      snap="${1:-}"; [[ -n "$snap" ]] || die "usage: $0 snapshot NAME"
+      require_vm; require_stopped
+      qemu-img snapshot -c "$snap" "$disk"
+      cp "$vars" "$dir/OVMF_VARS.$snap.fd"
+      if [[ -d "$dir/tpm" ]]; then rm -rf "$dir/tpm.$snap"; cp -r "$dir/tpm" "$dir/tpm.$snap"; fi
+      echo "Saved snapshot '$snap'"
+      ;;
+    restore)
+      snap="${1:-}"; [[ -n "$snap" ]] || die "usage: $0 restore NAME"
+      require_vm; require_stopped
+      [[ -f "$dir/OVMF_VARS.$snap.fd" ]] || die "no snapshot named '$snap'"
+      qemu-img snapshot -a "$snap" "$disk"
+      cp "$dir/OVMF_VARS.$snap.fd" "$vars"
+      if [[ -d "$dir/tpm.$snap" ]]; then rm -rf "$dir/tpm"; cp -r "$dir/tpm.$snap" "$dir/tpm"; fi
+      echo "Restored snapshot '$snap'"
+      ;;
+    list)
+      require_vm
+      qemu-img snapshot -U -l "$disk"
+      ;;
+    data-disk)
+      size="${1:-}"; [[ -n "$size" ]] || die "usage: $0 data-disk SIZE (e.g. 10G)"
+      [[ "$os" == linux ]] || die "data-disk is for Linux VMs"
+      require_vm; require_stopped
+      rm -f "$data_disk"
+      qemu-img create -q -f qcow2 "$data_disk" "$size"
+      echo "Attached blank $size data disk (guest: /dev/vdb); replaces any previous one"
+      ;;
+    destroy)
+      require_vm; require_stopped
+      rm -rf -- "$dir"
+      echo "Deleted $name"
+      ;;
+    *)
+      sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"; exit
