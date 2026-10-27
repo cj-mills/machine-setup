@@ -81,9 +81,9 @@ properties:
       directives: { description: Hibernation off, securityContext: elevated }
       settings:
         GetScript: |
-          @{ Result = [string](Get-ItemPropertyValue 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' -Name HibernateEnabled -ErrorAction SilentlyContinue) }
+          @{ Result = [string][Microsoft.Win32.Registry]::GetValue('HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Power', 'HibernateEnabled', $null) }
         TestScript: |
-          (Get-ItemPropertyValue 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' -Name HibernateEnabled -ErrorAction SilentlyContinue) -eq 0
+          [Microsoft.Win32.Registry]::GetValue('HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Power', 'HibernateEnabled', $null) -eq 0
         SetScript: |
           & powercfg.exe /hibernate off
     # Linux keeps the hardware clock in UTC; make Windows do the same so the clock
@@ -122,9 +122,9 @@ properties:
       directives: { description: Windows sudo (inline mode), securityContext: elevated }
       settings:
         GetScript: |
-          @{ Result = [string](Get-ItemPropertyValue 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo' -Name Enabled -ErrorAction SilentlyContinue) }
+          @{ Result = [string][Microsoft.Win32.Registry]::GetValue('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo', 'Enabled', $null) }
         TestScript: |
-          (Get-ItemPropertyValue 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo' -Name Enabled -ErrorAction SilentlyContinue) -eq 3
+          [Microsoft.Win32.Registry]::GetValue('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo', 'Enabled', $null) -eq 3
         SetScript: |
           & sudo.exe config --enable normal
     - resource: PSDscResources/Registry
@@ -180,14 +180,14 @@ properties:
       directives: { description: No suggestions, tips or auto-installed suggested apps }
       settings:
         GetScript: |
-          @{ Result = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' -ErrorAction SilentlyContinue | Out-String) }
+          @{ Result = [string][Microsoft.Win32.Registry]::GetValue('HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', 'SilentInstalledAppsEnabled', $null) }
         TestScript: |
-          $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
           $names = 'SilentInstalledAppsEnabled', 'SystemPaneSuggestionsEnabled', 'SoftLandingEnabled',
                    'RotatingLockScreenOverlayEnabled', 'SubscribedContent-338387Enabled',
                    'SubscribedContent-338388Enabled', 'SubscribedContent-338389Enabled',
                    'SubscribedContent-353694Enabled', 'SubscribedContent-353696Enabled'
-          -not ($names | Where-Object { (Get-ItemPropertyValue $key -Name $_ -ErrorAction SilentlyContinue) -ne 0 })
+          $regKey = 'HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
+          -not ($names | Where-Object { [Microsoft.Win32.Registry]::GetValue($regKey, $_, $null) -ne 0 })
         SetScript: |
           $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
           $names = 'SilentInstalledAppsEnabled', 'SystemPaneSuggestionsEnabled', 'SoftLandingEnabled',
@@ -385,8 +385,10 @@ properties:
       id: remove-preinstalled-apps
       directives: { description: Remove unwanted preinstalled apps, securityContext: elevated }
       settings:
+        # Runs in Windows PowerShell 5.1: the Appx and DISM modules don't load in the
+        # configuration runner's PowerShell 7 ("Class not registered").
         GetScript: |
-          @{ Result = ((Get-AppxProvisionedPackage -Online).DisplayName -join ', ') }
+          @{ Result = [string](& powershell.exe -NoProfile -NonInteractive -Command { (Get-AppxProvisionedPackage -Online).DisplayName -join ', ' }) }
         TestScript: |
           $remove = 'Clipchamp.Clipchamp', 'Microsoft.BingNews', 'Microsoft.BingSearch', 'Microsoft.BingWeather',
                     'Microsoft.GetHelp', 'Microsoft.MicrosoftOfficeHub', 'Microsoft.MicrosoftSolitaireCollection',
@@ -395,9 +397,13 @@ properties:
                     'MicrosoftWindows.CrossDevice', 'MicrosoftWindows.Client.WebExperience', 'MSTeams',
                     'Microsoft.GamingApp', 'MicrosoftCorporationII.QuickAssist', 'Microsoft.MicrosoftStickyNotes',
                     'Microsoft.WindowsAlarms', 'Microsoft.WindowsSoundRecorder', 'Microsoft.ZuneMusic'
-          $provisioned = (Get-AppxProvisionedPackage -Online).DisplayName
-          $installed = (Get-AppxPackage -AllUsers).Name
-          -not ($remove | Where-Object { $provisioned -contains $_ -or $installed -contains $_ })
+          $left = & powershell.exe -NoProfile -NonInteractive -Command {
+              param([string[]] $remove)
+              $provisioned = (Get-AppxProvisionedPackage -Online).DisplayName
+              $installed = (Get-AppxPackage -AllUsers).Name
+              @($remove | Where-Object { $provisioned -contains $_ -or $installed -contains $_ }).Count
+          } -args (,$remove)
+          [int]($left | Select-Object -Last 1) -eq 0
         SetScript: |
           $remove = 'Clipchamp.Clipchamp', 'Microsoft.BingNews', 'Microsoft.BingSearch', 'Microsoft.BingWeather',
                     'Microsoft.GetHelp', 'Microsoft.MicrosoftOfficeHub', 'Microsoft.MicrosoftSolitaireCollection',
@@ -406,15 +412,35 @@ properties:
                     'MicrosoftWindows.CrossDevice', 'MicrosoftWindows.Client.WebExperience', 'MSTeams',
                     'Microsoft.GamingApp', 'MicrosoftCorporationII.QuickAssist', 'Microsoft.MicrosoftStickyNotes',
                     'Microsoft.WindowsAlarms', 'Microsoft.WindowsSoundRecorder', 'Microsoft.ZuneMusic'
-          foreach ($name in $remove) {
-              Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq $name } |
-                  ForEach-Object { Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName | Out-Null }
-              Get-AppxPackage -AllUsers -Name $name | ForEach-Object { Remove-AppxPackage -Package $_.PackageFullName -AllUsers }
-          }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
+          & powershell.exe -NoProfile -NonInteractive -Command {
+              param([string[]] $remove)
+              foreach ($name in $remove) {
+                  Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq $name } |
+                      ForEach-Object { Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName | Out-Null }
+                  Get-AppxPackage -AllUsers -Name $name | ForEach-Object { Remove-AppxPackage -Package $_.PackageFullName -AllUsers }
+              }
+          } -args (,$remove)
+          if ($LASTEXITCODE) { throw "App removal failed with exit code $LASTEXITCODE." }
+    - resource: PSDscResources/Script
       id: onedrive-absent
-      directives: { description: OneDrive removed (Proton Drive and Google Drive instead), securityContext: elevated }
-      settings: { id: Microsoft.OneDrive, source: winget, Ensure: Absent }
+      directives: { description: OneDrive removed (Proton Drive and Google Drive instead) }
+      settings:
+        # Per-user install: uninstalled with its own registered uninstaller, in the
+        # user's context (winget can't remove it).
+        GetScript: |
+          @{ Result = [string](Test-Path "$env:LOCALAPPDATA\Microsoft\OneDrive\OneDrive.exe") }
+        TestScript: |
+          -not (Test-Path "$env:LOCALAPPDATA\Microsoft\OneDrive\OneDrive.exe") -and
+          -not (Test-Path "$env:ProgramFiles\Microsoft OneDrive\OneDrive.exe")
+        SetScript: |
+          Get-Process -Name OneDrive -ErrorAction SilentlyContinue | Stop-Process -Force
+          $u = [Microsoft.Win32.Registry]::GetValue('HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\OneDriveSetup.exe', 'UninstallString', $null)
+          if ($u -and $u -match '^"?(?<exe>[^"]+\.exe)"?\s*(?<args>.*)$') {
+              $p = Start-Process -FilePath $Matches.exe -ArgumentList $Matches.args -Wait -PassThru
+          } else {
+              $p = Start-Process -FilePath "$env:SystemRoot\System32\OneDriveSetup.exe" -ArgumentList '/uninstall' -Wait -PassThru
+          }
+          if ($p.ExitCode) { throw "OneDrive uninstaller failed with exit code $($p.ExitCode)." }
 
     # --- Applications ---------------------------------------------------------------
     - resource: Microsoft.WinGet.DSC/WinGetPackage
