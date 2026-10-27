@@ -72,7 +72,15 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
   WindowsOptionalFeature needs `dism.exe`; Script tests read the registry with
   `[Microsoft.Win32.Registry]::GetValue` (Get-ItemPropertyValue throws on missing values);
   `winget configure --enable` updates winget mid-run (wait); the first unit using a
-  newly installed module can fail (bootstrap runs a test pass first).
+  newly installed module can fail (bootstrap runs a test pass first);
+  PSDscResources/Registry can't remove a key (`Ensure: Absent` resolves it as a file
+  path): use a Script unit with the .NET registry API.
+- Removed apps coming back: Windows Update's orchestrator runs "expedited apps"
+  workflows (`HKLM\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe`,
+  run times in `..\USOShared\ScheduleTimeDump`) that install their app from the Store
+  whenever it's missing; Deprovisioned keys don't stop them. Trace a reinstall with the
+  Store/Operational log's `ClientAppId = Acquisition;<Name>_UO-UsoClient-...`. In the
+  VM, event times jump 7 h once `rtc-utc` takes effect at the next boot.
 - A fresh Windows runs no PowerShell scripts (policy "Restricted"); the test harness's
   own `-ExecutionPolicy Bypass` was inherited by its payloads and hid this until the
   real install. Test the exact command the runbook gives, with nothing the harness adds.
@@ -81,16 +89,16 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
 
 Done and verified: Linux system layer (VM, clean install + idempotent re-runs); data-drive
 mounts on the workstation (`/mnt/projects` with the old path as a bind mount, `/mnt/data`);
-Windows layer end to end in the VM (63/63 units with the runbook's exact command; a
-re-run with the plain command finds all in place except app removal).
+Windows layer end to end in the VM (64 units with the runbook's exact command; the
+removed apps stayed removed for 2 h including a reboot, after the orchestrator
+workflows that reinstalled them were deleted).
 
 Next:
 1. Real Windows install, following `docs/windows-install.md` (user runs it). Installed
    and signed in; the first `bootstrap.ps1` run hit the execution policy (now fixed).
-   Open: within the hour after removal, Windows re-provisioned CrossDevice and Dev Home
-   (staged by SYSTEM; AppXDeploymentServer log), so `remove-preinstalled-apps` drifts.
    VM harness: after a reboot post-apply, autologon no longer happened (no
-   interactive logon attempted), so `desktop-run` timed out waiting for the desktop.
+   interactive logon attempted), so `desktop-run` timed out waiting for the desktop;
+   SSH checks still work.
 2. Linux dotfiles into `home/`: `.bashrc` (history, conda init), git with 1Password SSH
    signing, `~/.local/bin` scripts (read each before committing: public repo), VS Code
    extensions, curated GNOME settings incl. event sounds off, Miniforge, Proton Drive
