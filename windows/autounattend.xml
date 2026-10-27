@@ -61,6 +61,14 @@
           <Path>cmd.exe /c "for %d in (D E F G H I J K L M N O P Q R S T U V W X Y Z) do @if exist %d:\machine-setup\first-logon.ps1 xcopy /e /i /y %d:\machine-setup C:\machine-setup"</Path>
           <Description>Copy machine-setup files from the installation media</Description>
         </RunSynchronousCommand>
+        <!-- No automatic device encryption: with a local account its recovery key is
+             backed up nowhere. BitLocker is enabled deliberately after setup, with the
+             recovery key stored in 1Password. -->
+        <RunSynchronousCommand wcm:action="add">
+          <Order>2</Order>
+          <Path>reg.exe add HKLM\SYSTEM\CurrentControlSet\Control\BitLocker /v PreventDeviceEncryption /t REG_DWORD /d 1 /f</Path>
+          <Description>Prevent automatic device encryption</Description>
+        </RunSynchronousCommand>
       </RunSynchronous>
     </component>
   </settings>
