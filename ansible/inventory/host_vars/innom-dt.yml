@@ -16,10 +16,9 @@ mounts_list:
     name: Data
 
 mounts_aliases:
-  - path: /mnt/SN850X_8TB_EXT4  # old projects path; conda envs and tools refer to it
+  - path: /mnt/SN850X_8TB_EXT4  # old projects path, still used by tools and session history
     target: /mnt/projects
 
 mounts_retired:
-  - /mnt/SN850X_8TB_EXT4  # now /mnt/projects (alias above)
   - /mnt/SN850X_8TB       # reformatted as /mnt/data
   - /mnt/SN850X_8TB_2     # stale entry from before that drive became ext4

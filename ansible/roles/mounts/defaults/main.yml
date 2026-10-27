@@ -11,9 +11,9 @@
 #                        (default: primary_user, primary_user, 0755)
 mounts_list: []
 
-# Compatibility symlinks from old paths to new mount points. An old path that is
-# still a mount point is left alone; once it is an empty, unmounted directory
-# (e.g. after the reboot following its retirement) it becomes the symlink.
+# Compatibility aliases: bind mounts exposing a mount point at an old path, so the
+# old path behaves exactly as before (unlike a symlink, programs that record their
+# working directory keep seeing the old path). Each: path (old), target (mount point).
 mounts_aliases: []
 
 # Mount points to drop from fstab without unmounting them; they are simply not
