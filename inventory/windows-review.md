@@ -1,44 +1,49 @@
 # Windows inventory review
 
-Curated from the read-only snapshot of the current Windows 11 Pro 25H2 install
-(`scripts/snapshot-windows.ps1`, raw output git-ignored). The fresh install goes on its
-own drive (see `docs/design.md`, drive layout) and is described declaratively with
-WinGet Configuration.
-
-Snapshot coverage: the admin account (`INNOM-DT`, elevated). The everyday account
-(`Personal`) still needs its own run for per-user apps (e.g. Amazon Music, PowerToys).
+Curated from read-only snapshots of the current Windows 11 Pro 25H2 install
+(`scripts/snapshot-windows.ps1`, raw output git-ignored), taken in both accounts: the
+admin account (`INNOM-DT`, elevated) and the everyday account (`Personal`). The fresh
+install goes on its own drive (see `docs/design.md`, drive layout), uses a single admin
+account, and is described declaratively with WinGet Configuration.
 
 **Source policy (Windows):** winget community source → Microsoft Store (via winget) for
 Store-only apps → vendor installer as a last resort. Per-project dependencies (NuGet,
 pip, conda) stay in projects, as on Linux.
 
+**winget ID column:** IDs from the snapshot's `winget export` are confirmed; IDs marked
+*(verify)* are expected IDs to check during the VM test of the configuration.
+
 **Decision column:** `keep` / `drop` / `?`.
 
 ## Applications
 
-| Item | Seen in snapshot | Decision | Notes |
+| Item | winget ID | Decision | Notes |
 |---|---|---|---|
-| Brave, Google Chrome, Firefox | installed | ? | Edge is built in |
-| 1Password + CLI | not installed | keep | SSH agent, secrets, as on Linux |
-| Claude Desktop | not installed | ? | |
-| Microsoft 365 (Office) | installed (Click-to-Run) | drop | Try ArtCraft's document/spreadsheet/slides apps first |
-| Typora | installed | ? | |
-| Blender | 5.0.0 | keep | Pin 5.2 LTS, matching Linux |
-| ArtCraft | not installed | keep | Windows/macOS releases; Linux is build-from-source |
-| VLC | installed | ? | |
-| MakeMKV | installed | ? | |
-| mGBA | installed | ? | |
-| Amazon Music | `Personal` account | ? | |
-| TuneFab music converter | updater in AppData | ? | |
+| Brave | Brave.Brave *(verify)* | ? | Edge is built in |
+| Google Chrome | Google.Chrome *(verify)* | ? | |
+| Firefox | Mozilla.Firefox *(verify)* | ? | |
+| 1Password + CLI | AgileBits.1Password, AgileBits.1Password.CLI *(verify)* | keep | SSH agent, secrets, as on Linux |
+| Claude Desktop | *(verify)* | ? | |
+| Microsoft 365 (Office) | — | drop | Try ArtCraft's document/spreadsheet/slides apps first |
+| ArtCraft | vendor installer | keep | Windows/macOS releases; Linux is build-from-source |
+| Typora | appmakes.Typora | ? | |
+| Blender | BlenderFoundation.Blender | keep | Pin 5.2 LTS, matching Linux |
+| SumatraPDF | SumatraPDF.SumatraPDF | ? | `Personal` account |
+| VLC | VideoLAN.VLC | ? | |
+| MakeMKV | GuinpinSoft.MakeMKV | ? | |
+| mGBA | JeffreyPfau.mGBA | ? | |
+| Amazon Music | Amazon.Music | ? | `Personal` account; starts at login |
+| TuneFab music converter | — | ? | Updater left in AppData; app itself not installed |
 | Clipchamp | Store default | ? | |
-| PowerToys | `Personal` account | ? | |
-| 7-Zip | installed | ? | |
-| WizTree | installed | ? | |
-| Samsung Magician | installed | keep | SSD firmware/health (Windows-only) |
-| Private Internet Access | installed | keep | |
-| Logitech software | Logi Download Assistant | ? | Which device needs it? |
-| Futuremark SystemInfo | installed | drop | Leftover from a benchmark |
-| Steam | installed; libraries on C:, the 860 EVO, both BX500s | keep | Windows library moves to the Windows drive |
+| PowerToys | Microsoft.PowerToys | ? | `Personal` account (preview build) |
+| 7-Zip | 7zip.7zip | ? | |
+| WizTree | AntibodySoftware.WizTree | ? | |
+| balenaEtcher | — | ? | Updater left in AppData; app itself not installed |
+| Samsung Magician | vendor installer | keep | SSD firmware/health (Windows-only) |
+| Private Internet Access | PrivateInternetAccess.PrivateInternetAccess | keep | |
+| Logitech software | — | ? | Logi Download Assistant at startup; which device needs it? |
+| Futuremark SystemInfo | — | drop | Leftover from a benchmark |
+| Steam | Valve.Steam | keep | One Windows library on the Windows drive (today: four libraries, one on a drive now ext4) |
 
 ## Drivers
 
@@ -50,22 +55,28 @@ pip, conda) stay in projects, as on Linux.
 
 ## Development
 
-| Item | Seen | Decision | Notes |
+| Item | winget ID | Decision | Notes |
 |---|---|---|---|
-| Visual Studio | partial remnants (installer, SDKs, .NET 9 SDK) | keep | Workloads: Game development with C++ (Unreal), .NET desktop, Windows App SDK |
-| Windows SDKs (17763, 22621, 26100) | installed | — | Installed by Visual Studio workloads; keep only what workloads pull in |
-| IIS Express, Web Deploy, Azure Functions tools | installed | ? | From Visual Studio web/Azure workloads |
-| Microsoft MPI | installed | ? | Usually pulled in by an ML/HPC tool |
-| Chocolatey | installed | drop | Superseded by winget |
-| Git | not installed | keep | |
-| VS Code | not installed | keep | |
-| WSL | feature enabled, no distros | keep | Distro choice later (e.g. Ubuntu, to test Linux-on-Windows tutorials) |
-| Python | Store alias only | keep | Miniforge (conda) and uv, as on Linux |
-| CUDA toolkit | not installed | keep | Pinned version; Windows supports side-by-side versions per project need |
-| Docker Desktop | not installed | keep | WSL2 backend with GPU; the reference setup for Windows users of your containers; no autostart |
-| Unity Hub | updater in AppData | keep | Editors per project |
-| Epic Games Launcher + Unreal Engine | not installed | keep | Engine versions per project |
-| Windows AI stack (Windows App SDK / Windows ML, Foundry Local) | not installed | ? | Per-project SDKs; machine-level runtime only if needed |
+| Visual Studio | *(verify; current Community edition)* | keep | Only remnants today. Workloads: Game development with C++ (Unreal), .NET desktop, Windows App SDK |
+| Windows SDKs (17763, 22621, 26100) | — | — | Pulled in by Visual Studio workloads; nothing installed separately |
+| IIS Express, Web Deploy, Azure Functions tools | Microsoft.WebDeploy | ? | From Visual Studio web/Azure workloads |
+| Microsoft MPI | Microsoft.msmpi | ? | On the machine PATH; usually pulled in by an ML/HPC tool |
+| Chocolatey | — | drop | Superseded by winget |
+| Git | Git.Git *(verify)* | keep | Not installed today |
+| GitHub Desktop | GitHub.GitHubDesktop | ? | `Personal` account |
+| VS Code | Microsoft.VisualStudioCode | keep | `Personal` account (user install) |
+| CMake | Kitware.CMake *(verify)* | ? | On `Personal`'s PATH; Visual Studio's C++ workload also bundles one |
+| Node.js / npm globals | via mise | ? | `Personal` has an npm global folder; mise runs on Windows too, matching Linux |
+| Miniforge3 | CondaForge.Miniforge3 | keep | `Personal` account; conda for project environments, as on Linux |
+| Mambaforge | — | drop | Old (2023) and superseded by Miniforge |
+| uv | via mise | keep | As on Linux |
+| WSL | Microsoft.WSL | keep | Feature enabled, no distros; distro choice later (e.g. Ubuntu, to test Linux-on-Windows tutorials) |
+| Windows Terminal | Microsoft.WindowsTerminal | keep | Built in on Windows 11 |
+| CUDA toolkit | Nvidia.CUDA *(verify)* | keep | Pinned version; Windows supports side-by-side versions per project need |
+| Docker Desktop | Docker.DockerDesktop *(verify)* | keep | WSL2 backend with GPU; the reference setup for Windows users of your containers; no autostart |
+| Unity Hub | Unity.UnityHub *(verify)* | keep | 8 GB Unity cache in `Personal`; editors per project |
+| Epic Games Launcher + Unreal Engine | EpicGames.EpicGamesLauncher *(verify)* | keep | 13 GB Unreal cache in `Personal`; engine versions per project |
+| Windows AI stack (Windows App SDK / Windows ML, Foundry Local) | — | ? | Per-project SDKs; machine-level runtime only if needed |
 
 ## Windows features
 
@@ -78,7 +89,10 @@ pip, conda) stay in projects, as on Linux.
 
 ## Settings and data
 
+- Accounts: one admin account (Administrator protection, or UAC "Always notify"), replacing
+  the admin + `Personal` pair.
 - Page file: system-managed on the Windows drive (the old one was split onto the Storage partition).
-- User folders: defaults on the Windows drive. Linux-side data stays on the ext4 drives;
-  reachable from Windows via `wsl --mount` when needed.
-- Steam: Windows keeps its own library on the Windows drive; Linux gets the 860 EVO.
+- User folders: defaults on the Windows drive. Today `Personal`'s Documents, Downloads,
+  Music, Pictures and Videos point at the shared Storage partition, which is going away;
+  Linux-side data stays on the ext4 drives, reachable from Windows via `wsl --mount` when needed.
+- Caches not worth keeping: pip (18 GB), Unreal (13 GB) and Unity (8 GB) caches in `Personal`.
