@@ -1,0 +1,59 @@
+- name: Mount data filesystems
+  ansible.posix.mount:
+    path: "{{ item.path }}"
+    src: "UUID={{ item.uuid }}"
+    fstype: "{{ item.fstype }}"
+    opts: >-
+      {{ item.opts | default('defaults,nofail,x-gvfs-show') }}{{
+         (',x-gvfs-name=' ~ item.name) if item.name is defined else '' }}
+    state: mounted
+  loop: "{{ mounts_list }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Set ownership of each filesystem's root directory
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner | default(primary_user) }}"
+    group: "{{ item.group | default(primary_user) }}"
+    mode: "{{ item.mode | default('0755') }}"
+  loop: "{{ mounts_list }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Drop retired mount points from fstab (they stay mounted until the next boot)
+  ansible.posix.mount:
+    path: "{{ item }}"
+    state: absent_from_fstab
+  loop: "{{ mounts_retired }}"
+
+- name: Inspect compatibility alias paths
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  loop: "{{ mounts_aliases }}"
+  loop_control:
+    label: "{{ item.path }}"
+  register: mounts_alias_stat
+
+- name: Remove empty, unmounted directories that are becoming aliases
+  # rmdir refuses non-empty directories, so this can never delete data.
+  ansible.builtin.command:
+    argv: [rmdir, "{{ item.item.path }}"]
+  loop: "{{ mounts_alias_stat.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+  when:
+    - item.stat.isdir | default(false)
+    - item.item.path not in (ansible_facts.mounts | map(attribute='mount') | list)
+  changed_when: true
+
+- name: Create compatibility alias symlinks
+  ansible.builtin.file:
+    src: "{{ item.item.target }}"
+    dest: "{{ item.item.path }}"
+    state: link
+  loop: "{{ mounts_alias_stat.results }}"
+  loop_control:
+    label: "{{ item.item.path }} -> {{ item.item.target }}"
+  when: item.item.path not in (ansible_facts.mounts | map(attribute='mount') | list)

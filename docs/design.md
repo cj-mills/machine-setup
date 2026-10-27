@@ -70,12 +70,37 @@ recreated from them, not by this repo.
 
 Front-load all human input, then walk away.
 
+Order: Windows is reinstalled on its own drive first, so the Linux drive can then be
+wiped whole.
+
 1. Back up `~` state (`~/.claude`, `~/.cjm`, shell history, anything not reproducible). Re-run `scripts/snapshot-system.sh` for a final inventory.
-2. Boot the 26.04 installer with the autoinstall config; answer the storage step only (target `nvme1n1p6`, reuse ESP `nvme1n1p2`, keep swap `nvme1n1p8`, leave all other partitions untouched).
-3. Unattended: OS install → first boot → bootstrap runs the Ansible system layer (no secrets needed).
-4. Sign in to 1Password, then `chezmoi init --apply` for the user layer.
+2. Boot the 26.04 installer with the autoinstall config. Its storage section targets the Linux drive by serial and lays out the ESP and LVM pool from the drive-layout table; confirming that target is the only interactive step.
+3. Unattended: OS install → first boot → bootstrap runs the Ansible system layer, including data-drive mounts (no secrets needed).
+4. Sign in to 1Password, then `chezmoi apply` for the user layer.
 
 Validated in a 26.04 VM before running on hardware.
+
+## Drive layout (workstation)
+
+One OS per physical drive; data drives mounted by filesystem UUID at purpose-named
+paths, so paths survive a drive replacement. Drives are addressed in commands by
+`/dev/disk/by-id/…` (serial-based): kernel `nvmeN` names change between boots.
+
+| Drive (serial) | Role | Mount | Filesystem |
+|---|---|---|---|
+| Samsung 990 PRO 4TB (…123428Y) | Linux only: 2 GB ESP (shared with test OSes), LVM pool — root ~2.5 TB, swap 64 GB, ~1 TB unallocated for growth and test-OS volumes | `/` | ext4 on LVM |
+| Samsung 990 PRO 4TB (…701402T) | Windows only (fresh install, own ESP) | — | NTFS |
+| WD SN850X 8TB (…0960) | Projects | `/mnt/projects` (alias `/mnt/SN850X_8TB_EXT4`) | ext4 |
+| WD SN850X 8TB (…0499) | Datasets, model weights, media | `/mnt/data` | ext4 |
+| Samsung 860 EVO 2TB | Linux Steam library (Windows keeps its own) | `/mnt/games` | ext4 (to convert) |
+| Crucial BX500 2TB #1 | Cold storage | `/mnt/archive` | ext4 |
+| Crucial BX500 2TB #2 | Backup target | `/mnt/backup` | ext4 (to convert) |
+| Intel 660p 512GB | Jetson Orin Nano internal NVMe boot drive | — | JetPack |
+| Samsung 850 EVO 500GB (USB) | Raspberry Pi 5 boot drive | — | Pi OS |
+| Samsung 980 1TB (USB) | Transfers between machines/OSes | removable | exFAT |
+
+Data-drive filesystems use no root reservation (`-m 0`) and GPT type "Linux
+filesystem". Mounts are managed by the `mounts` role from `host_vars`.
 
 ## Decisions
 
@@ -97,6 +122,10 @@ Validated in a 26.04 VM before running on hardware.
 | 2026-10-13 | Blender: official builds (not Flathub) under `/opt/blender`, one row per release in `blender_versions` with `blender-<series>` commands and a default `blender`; currently 5.2 LTS only, since projects target the latest LTS Python API. Releases are pinned by SHA-256 verified across three mirrors (`scripts/blender-pin.sh`); download.blender.org rejects scripted clients. API-heavy and agentic pipelines use the PyPI `bpy` wheel in a project-owned conda environment (isolated via cjm-substrate), version-matched to the installed Blender. |
 | 2026-10-13 | Fresh-install testing uses a disposable QEMU/KVM VM (`scripts/test-vm.sh`, no root needed) with qcow2 snapshots: install once, snapshot, bootstrap, roll back. Inventory host `ms-test`. |
 | 2026-10-22 | Local converges run `ansible-playbook` as root under one interactive `sudo` instead of Ansible's become password prompt. Ubuntu's default sudo since 25.10 is sudo-rs, whose prompt Ansible's sudo plugin doesn't recognise (Launchpad #2122414; the upstream fix is only on ansible-core `devel` after its 2.16–2.20 backports were reverted). Root is also the context of an unattended install. Rejected: switching the system `sudo` alternative back to sudo.ws on every machine. `primary_user` defaults to `SUDO_USER` with a guard against empty/root; collections install repo-locally (`ansible/collections/`). Revisit once a released ansible-core supports sudo-rs, for remote hosts that use become. |
+| 2026-10-26 | Windows moves to its own drive (second 990 PRO) as a fresh install: it is now a development platform (Unity/Unreal, Windows AI stack), not just a test target, and 500 GB on the shared drive is too small. One OS per drive also gives each its own ESP, so neither OS's updates or reinstalls touch the other. Rejected: a Windows data drive alongside the shared C:, and growing C: into the old Storage partition. |
+| 2026-10-26 | Linux drive uses LVM with deliberate under-allocation: ext4 grows online, shrinking needs a live USB, so free pool space serves both root growth and test-OS volumes. Rejected: plain partitions filling the drive, and unallocated space at the end of the drive. |
+| 2026-10-26 | Single admin account on the fresh Windows install with Administrator protection (or UAC "Always notify"). Rejected: separate standard and admin accounts, whose friction on a single-user development machine splits per-user installs across profiles. |
+| 2026-10-26 | Data drives are mounted at purpose-named paths by UUID via the `mounts` role. Old paths in use while converging are retired from fstab without unmounting and become compatibility symlinks after the next boot. |
 
 ## Repository layout
 
