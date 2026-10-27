@@ -12,8 +12,11 @@ several partitions.
 ## 1. Prepare, from Linux
 
 ```bash
-# The drive's old NTFS partition is still mounted; unmount it first.
+# The drive's old NTFS partition is still mounted; unmount it first, and drop its
+# /etc/fstab entry (mounted by that partition's UUID, which the erase removes).
 sudo umount /mnt/990_PRO_4TB
+sudo sed -i '\|/mnt/990_PRO_4TB|d' /etc/fstab
+sudo rmdir /mnt/990_PRO_4TB
 
 # Erase the Windows drive to an empty GPT (asks you to type its name back).
 sudo scripts/prepare-windows-disk.sh /dev/disk/by-id/nvme-Samsung_SSD_990_PRO_4TB_S7KGNU0X701402T
