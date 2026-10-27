@@ -11,6 +11,7 @@
 #   scripts/test-vm.sh stop               shut the guest down cleanly (over SSH) and wait
 #   scripts/test-vm.sh ssh [CMD...]       SSH into the guest, or run CMD there
 #   scripts/test-vm.sh wait-ssh           wait until the guest accepts SSH
+#   scripts/test-vm.sh desktop-run CMD    Windows: run PowerShell CMD in the desktop session (elevated)
 #   scripts/test-vm.sh ssh-setup          Linux: print the one-time guest commands that enable SSH
 #   scripts/test-vm.sh snapshot NAME      save a snapshot (VM must be off)
 #   scripts/test-vm.sh restore NAME       roll back to a snapshot (VM must be off)
@@ -200,6 +201,35 @@ guest_poweroff() {
   else guest_ssh sudo -n systemctl poweroff; fi
 }
 
+# Windows: run a PowerShell command in the signed-in desktop session (elevated), via a
+# one-off scheduled task, and print its output. SSH key sign-ins are non-interactive
+# logons in which Store and app-package installs fail (e.g. `winget configure
+# --enable` aborts with 0x80004004); the desktop session behaves like a person at
+# the keyboard.
+desktop_run() {
+  local b64
+  b64="$(printf '%s' "$1" | base64 -w0)"
+  guest_ssh "
+\$ErrorActionPreference = 'Stop'
+\$id = [guid]::NewGuid().ToString('n')
+\$dir = 'C:\\machine-setup\\desktop-run'
+New-Item -ItemType Directory -Force -Path \$dir | Out-Null
+Set-Content -Path \"\$dir\\\$id.ps1\" -Encoding UTF8 -Value ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$b64')))
+\$arg = \"-NoProfile -ExecutionPolicy Bypass -Command \`\"& '\$dir\\\$id.ps1' *> '\$dir\\\$id.log'; Set-Content '\$dir\\\$id.done' \`\$LASTEXITCODE\`\"\"
+\$task = \"machine-setup-\$id\"
+Register-ScheduledTask -TaskName \$task -Force \`
+  -Action (New-ScheduledTaskAction -Execute powershell.exe -Argument \$arg) \`
+  -Principal (New-ScheduledTaskPrincipal -UserId \$env:USERNAME -LogonType Interactive -RunLevel Highest) | Out-Null
+Start-ScheduledTask -TaskName \$task
+while (-not (Test-Path \"\$dir\\\$id.done\")) { Start-Sleep -Seconds 5 }
+Unregister-ScheduledTask -TaskName \$task -Confirm:\$false
+Get-Content \"\$dir\\\$id.log\"
+\$code = [int](Get-Content \"\$dir\\\$id.done\")
+Write-Output \"desktop-run exit code: \$code\"
+exit \$code
+"
+}
+
 guest_ssh() {
   ensure_key
   ssh -i "$ssh_key" -p "$ssh_port" \
@@ -274,6 +304,12 @@ main() {
     ssh)
       is_running || die "VM is not running"
       guest_ssh "$@"
+      ;;
+    desktop-run)
+      [[ "$os" == windows ]] || die "desktop-run is for Windows VMs"
+      is_running || die "VM is not running"
+      [[ -n "${1:-}" ]] || die "usage: $0 desktop-run 'POWERSHELL COMMAND'"
+      desktop_run "$1"
       ;;
     wait-ssh)
       is_running || die "VM is not running"
