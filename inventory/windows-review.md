@@ -21,10 +21,10 @@ pip, conda) stay in projects, as on Linux.
 | Brave, Google Chrome, Firefox | installed | ? | Edge is built in |
 | 1Password + CLI | not installed | keep | SSH agent, secrets, as on Linux |
 | Claude Desktop | not installed | ? | |
-| Microsoft 365 (Office) | installed (Click-to-Run) | ? | |
+| Microsoft 365 (Office) | installed (Click-to-Run) | drop | Try ArtCraft's document/spreadsheet/slides apps first |
 | Typora | installed | ? | |
 | Blender | 5.0.0 | keep | Pin 5.2 LTS, matching Linux |
-| ArtCraft | not installed | ? | Windows/macOS releases; Linux is build-from-source |
+| ArtCraft | not installed | keep | Windows/macOS releases; Linux is build-from-source |
 | VLC | installed | ? | |
 | MakeMKV | installed | ? | |
 | mGBA | installed | ? | |
@@ -44,7 +44,7 @@ pip, conda) stay in projects, as on Linux.
 
 | Item | Seen | Notes |
 |---|---|---|
-| NVIDIA driver 610.88 + PhysX | installed | Driver-only install vs NVIDIA App: decide |
+| NVIDIA driver 610.88 + PhysX | installed | NVIDIA App, on the Studio driver branch (stability for Blender/Unreal/CUDA); overlay off unless recording |
 | AMD chipset software | installed | From AMD; Windows Update covers some |
 | Realtek Ethernet | installed | Windows Update usually suffices |
 
@@ -61,8 +61,8 @@ pip, conda) stay in projects, as on Linux.
 | VS Code | not installed | keep | |
 | WSL | feature enabled, no distros | keep | Distro choice later (e.g. Ubuntu, to test Linux-on-Windows tutorials) |
 | Python | Store alias only | keep | Miniforge (conda) and uv, as on Linux |
-| CUDA toolkit | not installed | ? | Only if building CUDA code natively on Windows |
-| Docker Desktop | not installed | ? | WSL2 backend; licensing terms apply to companies above a size threshold |
+| CUDA toolkit | not installed | keep | Pinned version; Windows supports side-by-side versions per project need |
+| Docker Desktop | not installed | keep | WSL2 backend with GPU; the reference setup for Windows users of your containers; no autostart |
 | Unity Hub | updater in AppData | keep | Editors per project |
 | Epic Games Launcher + Unreal Engine | not installed | keep | Engine versions per project |
 | Windows AI stack (Windows App SDK / Windows ML, Foundry Local) | not installed | ? | Per-project SDKs; machine-level runtime only if needed |
@@ -72,7 +72,7 @@ pip, conda) stay in projects, as on Linux.
 | Feature | State | Decision |
 |---|---|---|
 | WSL, Virtual Machine Platform | enabled | keep |
-| Windows Sandbox | off | ? (disposable VM for testing installers of your own products) |
+| Windows Sandbox | off | keep (disposable VM for testing installers of your own products) |
 | .NET Framework 3.5 (NetFx3) | enabled | drop unless a tool needs it |
 | Work Folders client | enabled | drop |
 
