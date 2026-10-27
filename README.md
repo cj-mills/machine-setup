@@ -42,3 +42,9 @@ scripts/converge-system.sh --check --diff
 
 Add the host (its short hostname) to `ansible/inventory/hosts.yml`, with any
 host-specific values in `ansible/inventory/host_vars/<host>.yml`.
+
+## Windows
+
+Windows is described by `windows/` (answer file, first-sign-in scripts and a WinGet
+Configuration). Install procedure: [docs/windows-install.md](docs/windows-install.md).
+After installation, from Terminal (Admin): `C:\machine-setup\bootstrap.ps1`.
