@@ -9,9 +9,10 @@
     C:\machine-setup\bootstrap.ps1
 
   Re-runnable: units already in their desired state are left alone. Enables winget's
-  configuration feature if this winget version needs it (it downloads components from
-  the Microsoft Store), then applies configuration.winget. Without -AcceptAgreements,
-  winget shows the configuration's agreement prompt for you to accept.
+  configuration feature if this winget version needs it (it updates winget from the
+  Microsoft Store), runs a read-only test pass (which also installs the configuration's
+  modules), then applies configuration.winget. Without -AcceptAgreements, winget shows
+  the configuration's agreement prompt once, at the test pass.
 
 .PARAMETER AcceptAgreements
   Accept the configuration agreements without prompting (unattended runs, e.g. the
@@ -51,9 +52,18 @@ if ($LASTEXITCODE -ne 0) {
     Write-Output "winget $(& winget.exe --version) is ready."
 }
 
-$arguments = @('configure', '-f', $config)
-if ($AcceptAgreements) { $arguments += '--accept-configuration-agreements', '--disable-interactivity' }
-& winget.exe @arguments
+# Test pass first: read-only, and it installs every PowerShell module the configuration
+# uses. On a fresh machine, the unit that first triggers a module's install can fail to
+# find its resource ("Unable to find resource after install"); with the modules already
+# present, the apply pass doesn't hit that. The agreement prompt (unless
+# -AcceptAgreements) is shown here; the apply pass then runs with it accepted.
+Write-Output 'Checking the system against the configuration (no changes yet)...'
+$testArguments = @('configure', 'test', '-f', $config)
+if ($AcceptAgreements) { $testArguments += '--accept-configuration-agreements', '--disable-interactivity' }
+& winget.exe @testArguments
+
+Write-Output 'Applying the configuration...'
+& winget.exe configure -f $config --accept-configuration-agreements --disable-interactivity
 $code = $LASTEXITCODE
 
 Write-Output ''
