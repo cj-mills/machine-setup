@@ -207,7 +207,7 @@ guest_poweroff() {
 # --enable` aborts with 0x80004004); the desktop session behaves like a person at
 # the keyboard.
 desktop_run() {
-  local b64
+  local b64 timeout="${VM_DESKTOP_TIMEOUT:-14400}"
   b64="$(printf '%s' "$1" | base64 -w0)"
   guest_ssh "
 \$ErrorActionPreference = 'Stop'
@@ -215,15 +215,25 @@ desktop_run() {
 \$dir = 'C:\\machine-setup\\desktop-run'
 New-Item -ItemType Directory -Force -Path \$dir | Out-Null
 Set-Content -Path \"\$dir\\\$id.ps1\" -Encoding UTF8 -Value ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$b64')))
-\$arg = \"-NoProfile -ExecutionPolicy Bypass -Command \`\"& '\$dir\\\$id.ps1' *> '\$dir\\\$id.log'; Set-Content '\$dir\\\$id.done' \`\$LASTEXITCODE\`\"\"
+# Runner (fixed text; paths come in as parameters): always records an exit code,
+# even if the command throws.
+Set-Content -Path \"\$dir\\runner.ps1\" -Encoding UTF8 -Value @(
+  'param([string] \$Payload, [string] \$Log, [string] \$Done)'
+  '\$code = 1'
+  'try { & \$Payload *> \$Log; \$code = \$LASTEXITCODE; if (\$null -eq \$code) { \$code = 0 } }'
+  'catch { \"desktop-run: \$_\" | Out-File -Append -FilePath \$Log; \$code = 1 }'
+  'finally { Set-Content -Path \$Done -Value \$code }'
+)
 \$task = \"machine-setup-\$id\"
 Register-ScheduledTask -TaskName \$task -Force \`
-  -Action (New-ScheduledTaskAction -Execute powershell.exe -Argument \$arg) \`
+  -Action (New-ScheduledTaskAction -Execute powershell.exe -Argument \"-NoProfile -ExecutionPolicy Bypass -File \$dir\\runner.ps1 -Payload \$dir\\\$id.ps1 -Log \$dir\\\$id.log -Done \$dir\\\$id.done\") \`
   -Principal (New-ScheduledTaskPrincipal -UserId \$env:USERNAME -LogonType Interactive -RunLevel Highest) | Out-Null
 Start-ScheduledTask -TaskName \$task
-while (-not (Test-Path \"\$dir\\\$id.done\")) { Start-Sleep -Seconds 5 }
+\$deadline = (Get-Date).AddSeconds($timeout)
+while (-not (Test-Path \"\$dir\\\$id.done\") -and (Get-Date) -lt \$deadline) { Start-Sleep -Seconds 5 }
 Unregister-ScheduledTask -TaskName \$task -Confirm:\$false
-Get-Content \"\$dir\\\$id.log\"
+Get-Content \"\$dir\\\$id.log\" -ErrorAction SilentlyContinue
+if (-not (Test-Path \"\$dir\\\$id.done\")) { Write-Output 'desktop-run: timed out after $timeout s'; exit 124 }
 \$code = [int](Get-Content \"\$dir\\\$id.done\")
 Write-Output \"desktop-run exit code: \$code\"
 exit \$code

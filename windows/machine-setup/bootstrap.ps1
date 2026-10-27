@@ -31,13 +31,24 @@ if (-not $isAdmin) { throw 'Run this from an elevated terminal (Terminal (Admin)
 Write-Output "winget $(& winget.exe --version)"
 
 # Some winget versions ship configuration as an extended feature that must be enabled
-# first ("Configuration is not enabled"); `--enable` takes no other arguments.
+# first ("Configuration is not enabled"); `--enable` takes no other arguments. Enabling
+# updates App Installer (winget itself) from the Store, so winget is unusable for a
+# while afterwards: wait until validation works again before applying.
 & winget.exe configure validate -f $config --disable-interactivity *> $null
 if ($LASTEXITCODE -ne 0) {
-    Write-Output 'Enabling winget configuration (downloads components from the Microsoft Store)...'
+    Write-Output 'Enabling winget configuration (updates winget from the Microsoft Store)...'
     & winget.exe configure --enable
-    & winget.exe configure validate -f $config --disable-interactivity
-    if ($LASTEXITCODE -ne 0) { throw "winget can't validate $config (exit code $LASTEXITCODE)." }
+    $ready = $false
+    foreach ($attempt in 1..60) {
+        Start-Sleep -Seconds 10
+        & winget.exe configure validate -f $config --disable-interactivity *> $null
+        if ($LASTEXITCODE -eq 0) { $ready = $true; break }
+    }
+    if (-not $ready) {
+        & winget.exe configure validate -f $config --disable-interactivity
+        throw "winget configuration is still unavailable 10 minutes after enabling (exit code $LASTEXITCODE)."
+    }
+    Write-Output "winget $(& winget.exe --version) is ready."
 }
 
 $arguments = @('configure', '-f', $config)
