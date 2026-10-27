@@ -45,7 +45,8 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
   `scripts/esp-visibility.sh`; `VM_DECOY=0` boots without it). Installer image:
   `/mnt/data/win11-installer-usb.qcow2`. Copy changed files in with `scp` (key and
   known_hosts in the VM dir, port 2223, user `innom-dt`), then
-  `scripts/test-vm.sh desktop-run '& C:\machine-setup\bootstrap.ps1 -AcceptAgreements'`.
+  `scripts/test-vm.sh desktop-run 'powershell -NoProfile -ExecutionPolicy Bypass -File C:\machine-setup\bootstrap.ps1 -AcceptAgreements'`
+  (the runbook's command; desktop-run runs it as if typed at a fresh prompt).
   The user approved `--accept-configuration-agreements` for the test VM only.
 
 ## Lessons (each cost a debugging round)
@@ -72,15 +73,24 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
   `[Microsoft.Win32.Registry]::GetValue` (Get-ItemPropertyValue throws on missing values);
   `winget configure --enable` updates winget mid-run (wait); the first unit using a
   newly installed module can fail (bootstrap runs a test pass first).
+- A fresh Windows runs no PowerShell scripts (policy "Restricted"); the test harness's
+  own `-ExecutionPolicy Bypass` was inherited by its payloads and hid this until the
+  real install. Test the exact command the runbook gives, with nothing the harness adds.
 
 ## Status (2026-10-27)
 
 Done and verified: Linux system layer (VM, clean install + idempotent re-runs); data-drive
 mounts on the workstation (`/mnt/projects` with the old path as a bind mount, `/mnt/data`);
-Windows layer end to end in the VM (62/62 units, second test pass all in desired state).
+Windows layer end to end in the VM (63/63 units with the runbook's exact command; a
+re-run with the plain command finds all in place except app removal).
 
 Next:
-1. Real Windows install, following `docs/windows-install.md` (user runs it).
+1. Real Windows install, following `docs/windows-install.md` (user runs it). Installed
+   and signed in; the first `bootstrap.ps1` run hit the execution policy (now fixed).
+   Open: within the hour after removal, Windows re-provisioned CrossDevice and Dev Home
+   (staged by SYSTEM; AppXDeploymentServer log), so `remove-preinstalled-apps` drifts.
+   VM harness: after a reboot post-apply, autologon no longer happened (no
+   interactive logon attempted), so `desktop-run` timed out waiting for the desktop.
 2. Linux dotfiles into `home/`: `.bashrc` (history, conda init), git with 1Password SSH
    signing, `~/.local/bin` scripts (read each before committing: public repo), VS Code
    extensions, curated GNOME settings incl. event sounds off, Miniforge, Proton Drive

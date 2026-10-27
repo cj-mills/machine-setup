@@ -57,8 +57,12 @@ ESP (log: `C:\machine-setup\first-logon.log`).
 From **Terminal (Admin)**, with a network connection:
 
 ```powershell
-C:\machine-setup\bootstrap.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\machine-setup\bootstrap.ps1
 ```
+
+A fresh Windows runs no PowerShell scripts (execution policy "Restricted"), so the
+first run bypasses it for that one process; the configuration sets RemoteSigned, after
+which `C:\machine-setup\bootstrap.ps1` runs directly.
 
 Accept the configuration agreement when prompted. It may first update winget from the
 Store, then runs a read-only test pass, then applies everything (apps, settings,
