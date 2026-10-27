@@ -224,6 +224,13 @@ Set-Content -Path \"\$dir\\runner.ps1\" -Encoding UTF8 -Value @(
   'catch { \"desktop-run: \$_\" | Out-File -Append -FilePath \$Log; \$code = 1 }'
   'finally { Set-Content -Path \$Done -Value \$code }'
 )
+# An Interactive-logon task only runs once the user's desktop session exists (e.g.
+# right after boot, autologon may still be in progress).
+\$sessionDeadline = (Get-Date).AddMinutes(10)
+while (-not (Get-Process explorer -IncludeUserName -ErrorAction SilentlyContinue | Where-Object { \$_.UserName -like \"*\\\$env:USERNAME\" })) {
+  if ((Get-Date) -gt \$sessionDeadline) { Write-Output 'desktop-run: no desktop session for this user after 10 minutes'; exit 125 }
+  Start-Sleep -Seconds 5
+}
 \$task = \"machine-setup-\$id\"
 Register-ScheduledTask -TaskName \$task -Force \`
   -Action (New-ScheduledTaskAction -Execute powershell.exe -Argument \"-NoProfile -ExecutionPolicy Bypass -File \$dir\\runner.ps1 -Payload \$dir\\\$id.ps1 -Log \$dir\\\$id.log -Done \$dir\\\$id.done\") \`
