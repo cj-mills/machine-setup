@@ -67,6 +67,315 @@ properties:
         Name: WorkFolders-Client
         Ensure: Absent
 
+    # --- Dual-boot with Linux ----------------------------------------------------------
+    # Fast Startup leaves the Windows volume hibernated at shutdown; Linux then can't
+    # safely write to it, and boot switching misbehaves.
+    - resource: PSDscResources/Registry
+      id: fast-startup-off
+      directives: { description: Fast Startup off, securityContext: elevated, allowPrerelease: true }
+      settings:
+        Key: HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Power
+        ValueName: HiberbootEnabled
+        ValueType: Dword
+        ValueData: '0'
+        Force: true
+    # Hibernation off also removes hiberfil.sys (about the size of RAM).
+    - resource: PSDscResources/Script
+      id: hibernation-off
+      directives: { description: Hibernation off, securityContext: elevated, allowPrerelease: true }
+      settings:
+        GetScript: |
+          @{ Result = [string](Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Power').HibernateEnabled }
+        TestScript: |
+          (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Power').HibernateEnabled -eq 0
+        SetScript: |
+          & powercfg.exe /hibernate off
+    # Linux keeps the hardware clock in UTC; make Windows do the same so the clock
+    # isn't off by the time-zone offset after switching OS.
+    - resource: PSDscResources/Registry
+      id: rtc-utc
+      directives: { description: Hardware clock in UTC, securityContext: elevated, allowPrerelease: true }
+      settings:
+        Key: HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\TimeZoneInformation
+        ValueName: RealTimeIsUniversal
+        ValueType: Dword
+        ValueData: '1'
+        Force: true
+
+    # --- Development ------------------------------------------------------------------
+    - resource: PSDscResources/Registry
+      id: long-paths
+      directives: { description: Long file paths (Node, Python, Unreal), securityContext: elevated, allowPrerelease: true }
+      settings:
+        Key: HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem
+        ValueName: LongPathsEnabled
+        ValueType: Dword
+        ValueData: '1'
+        Force: true
+    - resource: Microsoft.Windows.Settings/WindowsSettings
+      id: developer-mode
+      directives: { description: Developer Mode, securityContext: elevated, allowPrerelease: true }
+      settings:
+        DeveloperMode: true
+    - resource: PSDscResources/Script
+      id: sudo-inline
+      directives: { description: Windows sudo (inline mode), securityContext: elevated, allowPrerelease: true }
+      settings:
+        GetScript: |
+          @{ Result = [string](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo' -ErrorAction SilentlyContinue).Enabled }
+        TestScript: |
+          (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo' -ErrorAction SilentlyContinue).Enabled -eq 3
+        SetScript: |
+          & sudo.exe config --enable normal
+    - resource: PSDscResources/Registry
+      id: explorer-file-extensions
+      directives: { description: Show file extensions, allowPrerelease: true }
+      settings:
+        Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced
+        ValueName: HideFileExt
+        ValueType: Dword
+        ValueData: '0'
+        Force: true
+    - resource: PSDscResources/Registry
+      id: explorer-hidden-files
+      directives: { description: Show hidden files, allowPrerelease: true }
+      settings:
+        Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced
+        ValueName: Hidden
+        ValueType: Dword
+        ValueData: '1'
+        Force: true
+
+    # --- Privacy, ads and nags ----------------------------------------------------------
+    - resource: PSDscResources/Registry
+      id: telemetry-required
+      directives: { description: Diagnostic data - required only, securityContext: elevated, allowPrerelease: true }
+      settings:
+        Key: HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DataCollection
+        ValueName: AllowTelemetry
+        ValueType: Dword
+        ValueData: '1'
+        Force: true
+    - resource: PSDscResources/Registry
+      id: tailored-experiences-off
+      directives: { description: Tailored experiences off, allowPrerelease: true }
+      settings:
+        Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Privacy
+        ValueName: TailoredExperiencesWithDiagnosticDataEnabled
+        ValueType: Dword
+        ValueData: '0'
+        Force: true
+    - resource: PSDscResources/Registry
+      id: advertising-id-off
+      directives: { description: Advertising ID off, allowPrerelease: true }
+      settings:
+        Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo
+        ValueName: Enabled
+        ValueType: Dword
+        ValueData: '0'
+        Force: true
+    # Suggestions, tips, lock-screen "fun facts", and silently installed suggested apps.
+    - resource: PSDscResources/Script
+      id: content-delivery-off
+      directives: { description: No suggestions, tips or auto-installed suggested apps, allowPrerelease: true }
+      settings:
+        GetScript: |
+          @{ Result = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' -ErrorAction SilentlyContinue | Out-String) }
+        TestScript: |
+          $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
+          $names = 'SilentInstalledAppsEnabled', 'SystemPaneSuggestionsEnabled', 'SoftLandingEnabled',
+                   'RotatingLockScreenOverlayEnabled', 'SubscribedContent-338387Enabled',
+                   'SubscribedContent-338388Enabled', 'SubscribedContent-338389Enabled',
+                   'SubscribedContent-353694Enabled', 'SubscribedContent-353696Enabled'
+          $props = Get-ItemProperty $key -ErrorAction SilentlyContinue
+          -not ($names | Where-Object { -not $props -or $props.$_ -ne 0 })
+        SetScript: |
+          $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
+          $names = 'SilentInstalledAppsEnabled', 'SystemPaneSuggestionsEnabled', 'SoftLandingEnabled',
+                   'RotatingLockScreenOverlayEnabled', 'SubscribedContent-338387Enabled',
+                   'SubscribedContent-338388Enabled', 'SubscribedContent-338389Enabled',
+                   'SubscribedContent-353694Enabled', 'SubscribedContent-353696Enabled'
+          if (-not (Test-Path $key)) { New-Item -Path $key -Force | Out-Null }
+          foreach ($n in $names) { New-ItemProperty -Path $key -Name $n -PropertyType DWord -Value 0 -Force | Out-Null }
+    - resource: PSDscResources/Registry
+      id: explorer-sync-ads-off
+      directives: { description: No sync-provider ads in File Explorer, allowPrerelease: true }
+      settings:
+        Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced
+        ValueName: ShowSyncProviderNotifications
+        ValueType: Dword
+        ValueData: '0'
+        Force: true
+    - resource: PSDscResources/Registry
+      id: finish-setup-nag-off
+      directives: { description: No "Finish setting up your device" prompts, allowPrerelease: true }
+      settings:
+        Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement
+        ValueName: ScoobeSystemSettingEnabled
+        ValueType: Dword
+        ValueData: '0'
+        Force: true
+    - resource: PSDscResources/Registry
+      id: start-web-search-off
+      directives: { description: No Bing web results in Start search, allowPrerelease: true }
+      settings:
+        Key: HKEY_CURRENT_USER\Software\Policies\Microsoft\Windows\Explorer
+        ValueName: DisableSearchBoxSuggestions
+        ValueType: Dword
+        ValueData: '1'
+        Force: true
+    - resource: PSDscResources/Registry
+      id: widgets-off
+      directives: { description: Widgets off, securityContext: elevated, allowPrerelease: true }
+      settings:
+        Key: HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Dsh
+        ValueName: AllowNewsAndInterests
+        ValueType: Dword
+        ValueData: '0'
+        Force: true
+    # Start: pins only (no recent files, recently added apps, tips or promotions).
+    - resource: PSDscResources/Registry
+      id: start-recent-files-off
+      directives: { description: Start - no recent files, allowPrerelease: true }
+      settings:
+        Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced
+        ValueName: Start_TrackDocs
+        ValueType: Dword
+        ValueData: '0'
+        Force: true
+    - resource: PSDscResources/Registry
+      id: start-promotions-off
+      directives: { description: Start - no tips or promotions, allowPrerelease: true }
+      settings:
+        Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced
+        ValueName: Start_IrisRecommendations
+        ValueType: Dword
+        ValueData: '0'
+        Force: true
+    - resource: PSDscResources/Registry
+      id: start-account-notifications-off
+      directives: { description: Start - no account notifications, allowPrerelease: true }
+      settings:
+        Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced
+        ValueName: Start_AccountNotifications
+        ValueType: Dword
+        ValueData: '0'
+        Force: true
+    - resource: PSDscResources/Registry
+      id: start-recently-added-off
+      directives: { description: Start - no recently added apps, securityContext: elevated, allowPrerelease: true }
+      settings:
+        Key: HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Explorer
+        ValueName: HideRecentlyAddedApps
+        ValueType: Dword
+        ValueData: '1'
+        Force: true
+
+    # --- Personal preferences ------------------------------------------------------------
+    - resource: PSDscResources/Registry
+      id: dark-mode-apps
+      directives: { description: Dark mode (apps), allowPrerelease: true }
+      settings:
+        Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize
+        ValueName: AppsUseLightTheme
+        ValueType: Dword
+        ValueData: '0'
+        Force: true
+    - resource: PSDscResources/Registry
+      id: dark-mode-system
+      directives: { description: Dark mode (Windows), allowPrerelease: true }
+      settings:
+        Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize
+        ValueName: SystemUsesLightTheme
+        ValueType: Dword
+        ValueData: '0'
+        Force: true
+    - resource: PSDscResources/Registry
+      id: taskbar-search-box
+      directives: { description: Taskbar search as a box, allowPrerelease: true }
+      settings:
+        Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Search
+        ValueName: SearchboxTaskbarMode
+        ValueType: Dword
+        ValueData: '2'
+        Force: true
+    # Visual effects: transparency and animations off (Settings > Accessibility >
+    # Visual effects). Font smoothing stays on.
+    - resource: PSDscResources/Registry
+      id: transparency-off
+      directives: { description: Transparency effects off, allowPrerelease: true }
+      settings:
+        Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize
+        ValueName: EnableTransparency
+        ValueType: Dword
+        ValueData: '0'
+        Force: true
+    - resource: PSDscResources/Script
+      id: animations-off
+      directives: { description: Animation effects off, allowPrerelease: true }
+      settings:
+        GetScript: |
+          @{ Result = (Get-ItemProperty 'HKCU:\Control Panel\Desktop\WindowMetrics').MinAnimate }
+        TestScript: |
+          ((Get-ItemProperty 'HKCU:\Control Panel\Desktop\WindowMetrics').MinAnimate -eq '0') -and
+          ((Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -ErrorAction SilentlyContinue).TaskbarAnimations -eq 0)
+        SetScript: |
+          Set-ItemProperty 'HKCU:\Control Panel\Desktop\WindowMetrics' -Name MinAnimate -Value '0'
+          New-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name TaskbarAnimations -PropertyType DWord -Value 0 -Force | Out-Null
+          # SPI_SETCLIENTAREAANIMATION (0x1043) = off, saved to the profile and broadcast.
+          Add-Type -Namespace MachineSetup -Name Spi -MemberDefinition '[DllImport("user32.dll")] public static extern bool SystemParametersInfo(uint a, uint b, System.IntPtr c, uint d);'
+          [MachineSetup.Spi]::SystemParametersInfo(0x1043, 0, [System.IntPtr]::Zero, 3) | Out-Null
+    # System sounds off: the "No Sounds" scheme, plus no startup sound.
+    - resource: PSDscResources/Script
+      id: system-sounds-off
+      directives: { description: No system sounds, allowPrerelease: true }
+      settings:
+        GetScript: |
+          @{ Result = (Get-ItemProperty 'HKCU:\AppEvents\Schemes').'(default)' }
+        TestScript: |
+          if ((Get-ItemProperty 'HKCU:\AppEvents\Schemes').'(default)' -ne '.None') { return $false }
+          $current = Get-ChildItem 'HKCU:\AppEvents\Schemes\Apps' -Recurse |
+              Where-Object { $_.PSChildName -eq '.Current' }
+          -not ($current | Where-Object { ($_.GetValue('') -as [string]) -ne '' })
+        SetScript: |
+          Set-ItemProperty 'HKCU:\AppEvents\Schemes' -Name '(default)' -Value '.None'
+          Get-ChildItem 'HKCU:\AppEvents\Schemes\Apps' -Recurse |
+              Where-Object { $_.PSChildName -eq '.Current' } |
+              ForEach-Object { Set-ItemProperty -Path $_.PSPath -Name '(default)' -Value '' }
+    - resource: PSDscResources/Registry
+      id: startup-sound-off
+      directives: { description: No startup sound, securityContext: elevated, allowPrerelease: true }
+      settings:
+        Key: HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\LogonUI\BootAnimation
+        ValueName: DisableStartupSound
+        ValueType: Dword
+        ValueData: '1'
+        Force: true
+    # Inverted mouse pointer: Windows' own "Windows Inverted" scheme, read from its
+    # scheme definition rather than hard-coding cursor files.
+    - resource: PSDscResources/Script
+      id: pointer-inverted
+      directives: { description: Inverted mouse pointer, allowPrerelease: true }
+      settings:
+        GetScript: |
+          @{ Result = (Get-ItemProperty 'HKCU:\Control Panel\Cursors').'(default)' }
+        TestScript: |
+          (Get-ItemProperty 'HKCU:\Control Panel\Cursors').'(default)' -eq 'Windows Inverted'
+        SetScript: |
+          $scheme = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Control Panel\Cursors\Schemes').'Windows Inverted'
+          if (-not $scheme) { throw 'The "Windows Inverted" pointer scheme is not defined on this system.' }
+          $roles = 'Arrow', 'Help', 'AppStarting', 'Wait', 'Crosshair', 'IBeam', 'NWPen', 'No',
+                   'SizeNS', 'SizeWE', 'SizeNWSE', 'SizeNESW', 'SizeAll', 'UpArrow', 'Hand', 'Pin', 'Person'
+          $files = $scheme -split ','
+          $key = 'HKCU:\Control Panel\Cursors'
+          for ($i = 0; $i -lt [math]::Min($roles.Count, $files.Count); $i++) {
+              Set-ItemProperty -Path $key -Name $roles[$i] -Value $files[$i]
+          }
+          Set-ItemProperty -Path $key -Name '(default)' -Value 'Windows Inverted'
+          # SPI_SETCURSORS (0x57): reload cursors now.
+          Add-Type -Namespace MachineSetup -Name Cursors -MemberDefinition '[DllImport("user32.dll")] public static extern bool SystemParametersInfo(uint a, uint b, System.IntPtr c, uint d);'
+          [MachineSetup.Cursors]::SystemParametersInfo(0x57, 0, [System.IntPtr]::Zero, 3) | Out-Null
+
     # --- Applications ---------------------------------------------------------------
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: brave
@@ -120,6 +429,18 @@ properties:
       id: steam
       directives: { description: Steam, securityContext: elevated }
       settings: { id: Valve.Steam, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: proton-drive
+      directives: { description: Proton Drive, securityContext: elevated }
+      settings: { id: Proton.ProtonDrive, source: winget }  # verify
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: google-drive
+      directives: { description: Google Drive, securityContext: elevated }
+      settings: { id: Google.GoogleDrive, source: winget }  # verify
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: powershell
+      directives: { description: PowerShell 7, securityContext: elevated }
+      settings: { id: Microsoft.PowerShell, source: winget }
 
     # --- Development ----------------------------------------------------------------
     - resource: Microsoft.WinGet.DSC/WinGetPackage
