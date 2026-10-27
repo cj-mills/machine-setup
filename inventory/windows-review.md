@@ -34,7 +34,7 @@ pip, conda) stay in projects, as on Linux.
 | mGBA | JeffreyPfau.mGBA | drop | Reinstall if wanted |
 | Amazon Music | Amazon.Music | drop | `Personal` account; starts at login |
 | TuneFab music converter | — | drop | Updater left in AppData; app itself not installed |
-| Clipchamp | Store default | ? | |
+| Clipchamp | Store default | drop | Try ArtCraft's video editor first (built-in agent support) |
 | PowerToys | Microsoft.PowerToys | keep | In daily use |
 | 7-Zip | 7zip.7zip | drop | Windows 11 handles common archive formats |
 | WizTree | AntibodySoftware.WizTree | keep |  |
