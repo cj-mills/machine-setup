@@ -47,4 +47,5 @@ host-specific values in `ansible/inventory/host_vars/<host>.yml`.
 
 Windows is described by `windows/` (answer file, first-sign-in scripts and a WinGet
 Configuration). Install procedure: [docs/windows-install.md](docs/windows-install.md).
-After installation, from Terminal (Admin): `C:\machine-setup\bootstrap.ps1`.
+After installation, from Terminal (Admin):
+`powershell -NoProfile -ExecutionPolicy Bypass -File C:\machine-setup\bootstrap.ps1`.

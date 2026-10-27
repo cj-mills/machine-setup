@@ -45,7 +45,8 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
   `scripts/esp-visibility.sh`; `VM_DECOY=0` boots without it). Installer image:
   `/mnt/data/win11-installer-usb.qcow2`. Copy changed files in with `scp` (key and
   known_hosts in the VM dir, port 2223, user `innom-dt`), then
-  `scripts/test-vm.sh desktop-run '& C:\machine-setup\bootstrap.ps1 -AcceptAgreements'`.
+  `scripts/test-vm.sh desktop-run 'powershell -NoProfile -ExecutionPolicy Bypass -File C:\machine-setup\bootstrap.ps1 -AcceptAgreements'`
+  (the runbook's command; desktop-run runs it as if typed at a fresh prompt).
   The user approved `--accept-configuration-agreements` for the test VM only.
 
 ## Lessons (each cost a debugging round)
@@ -72,3 +73,6 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
   `[Microsoft.Win32.Registry]::GetValue` (Get-ItemPropertyValue throws on missing values);
   `winget configure --enable` updates winget mid-run (wait); the first unit using a
   newly installed module can fail (bootstrap runs a test pass first).
+- A fresh Windows runs no PowerShell scripts (policy "Restricted"); the test harness's
+  own `-ExecutionPolicy Bypass` was inherited by its payloads and hid this until the
+  real install. Test the exact command the runbook gives, with nothing the harness adds.

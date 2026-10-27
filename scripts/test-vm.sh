@@ -205,7 +205,9 @@ guest_poweroff() {
 # one-off scheduled task, and print its output. SSH key sign-ins are non-interactive
 # logons in which Store and app-package installs fail (e.g. `winget configure
 # --enable` aborts with 0x80004004); the desktop session behaves like a person at
-# the keyboard.
+# the keyboard. The command runs as if typed at a fresh prompt: in its own
+# powershell.exe under the machine's execution policy (the runner's own Bypass, which
+# child processes would otherwise inherit, once hid a fresh Windows' "Restricted").
 desktop_run() {
   local b64 timeout="${VM_DESKTOP_TIMEOUT:-14400}"
   b64="$(printf '%s' "$1" | base64 -w0)"
@@ -220,7 +222,13 @@ Set-Content -Path \"\$dir\\\$id.ps1\" -Encoding UTF8 -Value ([Text.Encoding]::UT
 Set-Content -Path \"\$dir\\runner.ps1\" -Encoding UTF8 -Value @(
   'param([string] \$Payload, [string] \$Log, [string] \$Done)'
   '\$code = 1'
-  'try { & \$Payload *> \$Log; \$code = \$LASTEXITCODE; if (\$null -eq \$code) { \$code = 0 } }'
+  'Remove-Item Env:PSExecutionPolicyPreference -ErrorAction SilentlyContinue'
+  '# Exit code: the last native command''s, else 1 if the last statement failed.'
+  '\$epilogue = ''\$ok = \$?; if (\$LASTEXITCODE) { exit \$LASTEXITCODE }; if (-not \$ok) { exit 1 }; exit 0'''
+  '\$command = (Get-Content -Raw -Path \$Payload) + [Environment]::NewLine + \$epilogue'
+  '\$encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes(\$command))'
+  '# Stringify stderr lines, which Windows PowerShell would wrap as error records.'
+  'try { & powershell.exe -NoProfile -EncodedCommand \$encoded 2>&1 | ForEach-Object { \"\$_\" } | Out-File -FilePath \$Log; \$code = \$LASTEXITCODE }'
   'catch { \"desktop-run: \$_\" | Out-File -Append -FilePath \$Log; \$code = 1 }'
   'finally { Set-Content -Path \$Done -Value \$code }'
 )

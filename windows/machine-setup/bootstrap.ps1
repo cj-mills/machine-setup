@@ -6,7 +6,10 @@
   Run once after the first sign-in (and the password change), from Terminal (Admin),
   with a network connection:
 
-    C:\machine-setup\bootstrap.ps1
+    powershell -NoProfile -ExecutionPolicy Bypass -File C:\machine-setup\bootstrap.ps1
+
+  A fresh Windows runs no scripts (execution policy "Restricted"), hence the bypass,
+  which applies to this run only; the configuration then sets RemoteSigned.
 
   Re-runnable: units already in their desired state are left alone. Enables winget's
   configuration feature if this winget version needs it (it updates winget from the

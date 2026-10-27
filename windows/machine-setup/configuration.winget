@@ -117,6 +117,18 @@ properties:
         ValueType: Dword
         ValueData: ['1']
         Force: true
+    # Windows PowerShell ships "Restricted" (no scripts at all, profiles included);
+    # RemoteSigned runs local scripts and requires a signature on downloaded ones.
+    # This is Set-ExecutionPolicy -Scope LocalMachine; PowerShell 7 already defaults to it.
+    - resource: PSDscResources/Registry
+      id: powershell-execution-policy
+      directives: { description: PowerShell runs local scripts (RemoteSigned), securityContext: elevated }
+      settings:
+        Key: HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell
+        ValueName: ExecutionPolicy
+        ValueType: String
+        ValueData: ['RemoteSigned']
+        Force: true
     - resource: PSDscResources/Script
       id: sudo-inline
       directives: { description: Windows sudo (inline mode), securityContext: elevated }
