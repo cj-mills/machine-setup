@@ -377,7 +377,10 @@ properties:
 
     # --- Preinstalled apps ----------------------------------------------------------------
     # Removed for every account and deprovisioned, so new accounts and feature updates
-    # don't bring them back. Names: Get-AppxProvisionedPackage -Online.
+    # don't bring them back. Names: Get-AppxProvisionedPackage -Online. Kept on purpose:
+    # codecs, App Installer (winget), Store, Security, Calculator, Notepad, Paint,
+    # Photos, Snipping Tool, Camera, Terminal, and the Xbox identity/Game Bar
+    # components games use. Remote help, if ever needed: RustDesk (cross-platform).
     - resource: PSDscResources/Script
       id: remove-preinstalled-apps
       directives: { description: Remove unwanted preinstalled apps, securityContext: elevated }
@@ -389,7 +392,9 @@ properties:
                     'Microsoft.GetHelp', 'Microsoft.MicrosoftOfficeHub', 'Microsoft.MicrosoftSolitaireCollection',
                     'Microsoft.OutlookForWindows', 'Microsoft.PowerAutomateDesktop', 'Microsoft.Todos',
                     'Microsoft.Windows.DevHome', 'Microsoft.WindowsFeedbackHub', 'Microsoft.YourPhone',
-                    'MicrosoftWindows.CrossDevice', 'MicrosoftWindows.Client.WebExperience', 'MSTeams'
+                    'MicrosoftWindows.CrossDevice', 'MicrosoftWindows.Client.WebExperience', 'MSTeams',
+                    'Microsoft.GamingApp', 'MicrosoftCorporationII.QuickAssist', 'Microsoft.MicrosoftStickyNotes',
+                    'Microsoft.WindowsAlarms', 'Microsoft.WindowsSoundRecorder', 'Microsoft.ZuneMusic'
           $provisioned = (Get-AppxProvisionedPackage -Online).DisplayName
           $installed = (Get-AppxPackage -AllUsers).Name
           -not ($remove | Where-Object { $provisioned -contains $_ -or $installed -contains $_ })
@@ -398,7 +403,9 @@ properties:
                     'Microsoft.GetHelp', 'Microsoft.MicrosoftOfficeHub', 'Microsoft.MicrosoftSolitaireCollection',
                     'Microsoft.OutlookForWindows', 'Microsoft.PowerAutomateDesktop', 'Microsoft.Todos',
                     'Microsoft.Windows.DevHome', 'Microsoft.WindowsFeedbackHub', 'Microsoft.YourPhone',
-                    'MicrosoftWindows.CrossDevice', 'MicrosoftWindows.Client.WebExperience', 'MSTeams'
+                    'MicrosoftWindows.CrossDevice', 'MicrosoftWindows.Client.WebExperience', 'MSTeams',
+                    'Microsoft.GamingApp', 'MicrosoftCorporationII.QuickAssist', 'Microsoft.MicrosoftStickyNotes',
+                    'Microsoft.WindowsAlarms', 'Microsoft.WindowsSoundRecorder', 'Microsoft.ZuneMusic'
           foreach ($name in $remove) {
               Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq $name } |
                   ForEach-Object { Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName | Out-Null }

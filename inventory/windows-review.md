@@ -96,3 +96,16 @@ pip, conda) stay in projects, as on Linux.
   Music, Pictures and Videos point at the shared Storage partition, which is going away;
   Linux-side data stays on the ext4 drives, reachable from Windows via `wsl --mount` when needed.
 - Caches not worth keeping: pip (18 GB), Unreal (13 GB) and Unity (8 GB) caches in `Personal`.
+
+## Preinstalled apps (this image: Windows 11 25H2, build 26300)
+
+Removed by the configuration (account and provisioned copies): Clipchamp, Bing News /
+Search / Weather, Get Help, Microsoft 365 Copilot (OfficeHub), Outlook (new), Teams,
+To Do, Power Automate, Dev Home, Feedback Hub, Solitaire, Phone Link and Cross Device
+Experience Host, the Widgets board, Xbox app (no Game Pass / Xbox store), Quick Assist
+(remote help, if ever needed: RustDesk), Sticky Notes, Clock, Sound Recorder, Media
+Player (VLC handles audio), and OneDrive.
+
+Kept: media codec extensions, App Installer (winget), Store, Windows Security,
+Calculator, Notepad, Paint, Photos, Snipping Tool, Camera, Terminal, and the Xbox
+identity / Game Bar components games use. Edge can't be removed outside the EEA.
