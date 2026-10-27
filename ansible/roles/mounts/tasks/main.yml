@@ -28,32 +28,29 @@
     state: absent_from_fstab
   loop: "{{ mounts_retired }}"
 
-- name: Inspect compatibility alias paths
-  ansible.builtin.stat:
+- name: Define compatibility bind mounts in fstab
+  # A bind mount (unlike a symlink) keeps the old path as the path programs see,
+  # so tools that record their working directory behave exactly as before.
+  ansible.posix.mount:
     path: "{{ item.path }}"
+    src: "{{ item.target }}"
+    fstype: none
+    opts: "bind,nofail,x-systemd.requires-mounts-for={{ item.target }}"
+    state: present
   loop: "{{ mounts_aliases }}"
   loop_control:
-    label: "{{ item.path }}"
-  register: mounts_alias_stat
+    label: "{{ item.path }} -> {{ item.target }}"
 
-- name: Remove empty, unmounted directories that are becoming aliases
-  # rmdir refuses non-empty directories, so this can never delete data.
-  ansible.builtin.command:
-    argv: [rmdir, "{{ item.item.path }}"]
-  loop: "{{ mounts_alias_stat.results }}"
+- name: Activate compatibility bind mounts not mounted yet
+  # A path still mounted some other way (e.g. directly from the device, before the
+  # first reboot) switches over to the bind mount at the next boot.
+  ansible.posix.mount:
+    path: "{{ item.path }}"
+    src: "{{ item.target }}"
+    fstype: none
+    opts: "bind,nofail,x-systemd.requires-mounts-for={{ item.target }}"
+    state: mounted
+  loop: "{{ mounts_aliases }}"
   loop_control:
-    label: "{{ item.item.path }}"
-  when:
-    - item.stat.isdir | default(false)
-    - item.item.path not in (ansible_facts.mounts | map(attribute='mount') | list)
-  changed_when: true
-
-- name: Create compatibility alias symlinks
-  ansible.builtin.file:
-    src: "{{ item.item.target }}"
-    dest: "{{ item.item.path }}"
-    state: link
-  loop: "{{ mounts_alias_stat.results }}"
-  loop_control:
-    label: "{{ item.item.path }} -> {{ item.item.target }}"
-  when: item.item.path not in (ansible_facts.mounts | map(attribute='mount') | list)
+    label: "{{ item.path }} -> {{ item.target }}"
+  when: item.path not in (ansible_facts.mounts | map(attribute='mount') | list)

@@ -15,6 +15,7 @@
 #   scripts/test-vm.sh snapshot NAME      save a snapshot (VM must be off)
 #   scripts/test-vm.sh restore NAME       roll back to a snapshot (VM must be off)
 #   scripts/test-vm.sh list               list snapshots
+#   scripts/test-vm.sh data-disk SIZE     add a blank second disk (/dev/vdb in the guest)
 #   scripts/test-vm.sh destroy            delete the VM
 #
 # Inside the guest, this repository is shared read-only over 9p, so local
@@ -33,6 +34,7 @@ vm_user="${VM_USER:-tester}"
 ssh_port="${VM_SSH_PORT:-2222}"
 dir="${VM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/machine-setup/vm}/$name"
 disk="$dir/disk.qcow2"
+data_disk="$dir/data.qcow2"  # optional second disk, e.g. for testing the mounts role
 vars="$dir/OVMF_VARS.fd"
 pidfile="$dir/qemu.pid"
 ssh_key="$dir/ssh_key"
@@ -96,6 +98,7 @@ boot() {
     -virtfs local,path="$repo_root",mount_tag=machine-setup,security_model=none,readonly=on \
     -virtfs local,path="$dir/share",mount_tag=vm-meta,security_model=none,readonly=on \
     -pidfile "$pidfile" \
+    $([[ -f "$data_disk" ]] && echo "-drive file=$data_disk,if=virtio,format=qcow2,discard=unmap") \
     "$@"
 }
 
@@ -170,6 +173,13 @@ EOF
   list)
     require_vm
     qemu-img snapshot -U -l "$disk"
+    ;;
+  data-disk)
+    size="${1:-}"; [[ -n "$size" ]] || die "usage: $0 data-disk SIZE (e.g. 10G)"
+    require_vm; require_stopped
+    rm -f "$data_disk"
+    qemu-img create -q -f qcow2 "$data_disk" "$size"
+    echo "Attached blank $size data disk (guest: /dev/vdb); replaces any previous one"
     ;;
   destroy)
     require_vm; require_stopped
