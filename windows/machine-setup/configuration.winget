@@ -6,18 +6,9 @@
 # Apply from an elevated terminal:
 #   winget configure -f C:\machine-setup\configuration.winget
 #
-# DRAFT: package IDs marked "verify" are expected IDs not yet confirmed against the
-# winget catalog; the test VM run confirms or corrects them.
+# Validated in the Windows test VM (scripts/test-vm.sh desktop-run).
 properties:
   configurationVersion: 0.2.0
-
-  assertions:
-    - resource: Microsoft.Windows.Developer/OsVersion
-      directives:
-        description: Windows 11
-        allowPrerelease: true
-      settings:
-        MinVersion: '10.0.22000'
 
   resources:
     # --- Security -----------------------------------------------------------------
@@ -27,157 +18,166 @@ properties:
       directives:
         description: UAC always notify (admin consent prompt)
         securityContext: elevated
-        allowPrerelease: true
       settings:
         Key: HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
         ValueName: ConsentPromptBehaviorAdmin
         ValueType: Dword
-        ValueData: '2'
+        ValueData: ['2']
         Force: true
     - resource: PSDscResources/Registry
       id: uac-secure-desktop
       directives:
         description: UAC prompts on the secure desktop
         securityContext: elevated
-        allowPrerelease: true
       settings:
         Key: HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
         ValueName: PromptOnSecureDesktop
         ValueType: Dword
-        ValueData: '1'
+        ValueData: ['1']
         Force: true
 
     # --- Windows features -----------------------------------------------------------
-    - resource: PSDscResources/WindowsOptionalFeature
+    - resource: PSDscResources/Script
       id: windows-sandbox
-      directives:
-        description: Windows Sandbox
-        securityContext: elevated
-        allowPrerelease: true
+      directives: { description: Windows Sandbox, securityContext: elevated }
       settings:
-        Name: Containers-DisposableClientVM
-        Ensure: Present
-    - resource: PSDscResources/WindowsOptionalFeature
+        # dism.exe directly: the WindowsOptionalFeature resource fails under winget's
+        # configuration runner ("Class not registered").
+        GetScript: |
+          @{ Result = ((& dism.exe /online /get-featureinfo /featurename:Containers-DisposableClientVM /english) -match '^State : ') -join '' }
+        TestScript: |
+          ((& dism.exe /online /get-featureinfo /featurename:Containers-DisposableClientVM /english) -match '^State : Enabled$').Count -gt 0
+        SetScript: |
+          & dism.exe /online /enable-feature /featurename:Containers-DisposableClientVM /all /norestart /quiet
+          if ($LASTEXITCODE -notin 0, 3010) { throw "dism.exe failed with exit code $LASTEXITCODE." }
+    - resource: PSDscResources/Script
       id: work-folders-off
-      directives:
-        description: Work Folders client (unused)
-        securityContext: elevated
-        allowPrerelease: true
+      directives: { description: Work Folders client (unused), securityContext: elevated }
       settings:
-        Name: WorkFolders-Client
-        Ensure: Absent
-
+        # dism.exe directly: the WindowsOptionalFeature resource fails under winget's
+        # configuration runner ("Class not registered").
+        GetScript: |
+          @{ Result = ((& dism.exe /online /get-featureinfo /featurename:WorkFolders-Client /english) -match '^State : ') -join '' }
+        TestScript: |
+          ((& dism.exe /online /get-featureinfo /featurename:WorkFolders-Client /english) -match '^State : Disabled$').Count -gt 0
+        SetScript: |
+          & dism.exe /online /disable-feature /featurename:WorkFolders-Client /norestart /quiet
+          if ($LASTEXITCODE -notin 0, 3010) { throw "dism.exe failed with exit code $LASTEXITCODE." }
     # --- Dual-boot with Linux ----------------------------------------------------------
     # Fast Startup leaves the Windows volume hibernated at shutdown; Linux then can't
     # safely write to it, and boot switching misbehaves.
     - resource: PSDscResources/Registry
       id: fast-startup-off
-      directives: { description: Fast Startup off, securityContext: elevated, allowPrerelease: true }
+      directives: { description: Fast Startup off, securityContext: elevated }
       settings:
         Key: HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Power
         ValueName: HiberbootEnabled
         ValueType: Dword
-        ValueData: '0'
+        ValueData: ['0']
         Force: true
     # Hibernation off also removes hiberfil.sys (about the size of RAM).
     - resource: PSDscResources/Script
       id: hibernation-off
-      directives: { description: Hibernation off, securityContext: elevated, allowPrerelease: true }
+      directives: { description: Hibernation off, securityContext: elevated }
       settings:
         GetScript: |
-          @{ Result = [string](Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Power').HibernateEnabled }
+          @{ Result = [string](Get-ItemPropertyValue 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' -Name HibernateEnabled -ErrorAction SilentlyContinue) }
         TestScript: |
-          (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Power').HibernateEnabled -eq 0
+          (Get-ItemPropertyValue 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' -Name HibernateEnabled -ErrorAction SilentlyContinue) -eq 0
         SetScript: |
           & powercfg.exe /hibernate off
     # Linux keeps the hardware clock in UTC; make Windows do the same so the clock
     # isn't off by the time-zone offset after switching OS.
     - resource: PSDscResources/Registry
       id: rtc-utc
-      directives: { description: Hardware clock in UTC, securityContext: elevated, allowPrerelease: true }
+      directives: { description: Hardware clock in UTC, securityContext: elevated }
       settings:
         Key: HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\TimeZoneInformation
         ValueName: RealTimeIsUniversal
         ValueType: Dword
-        ValueData: '1'
+        ValueData: ['1']
         Force: true
 
     # --- Development ------------------------------------------------------------------
     - resource: PSDscResources/Registry
       id: long-paths
-      directives: { description: Long file paths (Node, Python, Unreal), securityContext: elevated, allowPrerelease: true }
+      directives: { description: Long file paths (Node, Python, Unreal), securityContext: elevated }
       settings:
         Key: HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem
         ValueName: LongPathsEnabled
         ValueType: Dword
-        ValueData: '1'
+        ValueData: ['1']
         Force: true
-    - resource: Microsoft.Windows.Settings/WindowsSettings
+    - resource: PSDscResources/Registry
       id: developer-mode
-      directives: { description: Developer Mode, securityContext: elevated, allowPrerelease: true }
+      directives: { description: Developer Mode, securityContext: elevated }
       settings:
-        DeveloperMode: true
+        Key: HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock
+        ValueName: AllowDevelopmentWithoutDevLicense
+        ValueType: Dword
+        ValueData: ['1']
+        Force: true
     - resource: PSDscResources/Script
       id: sudo-inline
-      directives: { description: Windows sudo (inline mode), securityContext: elevated, allowPrerelease: true }
+      directives: { description: Windows sudo (inline mode), securityContext: elevated }
       settings:
         GetScript: |
-          @{ Result = [string](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo' -ErrorAction SilentlyContinue).Enabled }
+          @{ Result = [string](Get-ItemPropertyValue 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo' -Name Enabled -ErrorAction SilentlyContinue) }
         TestScript: |
-          (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo' -ErrorAction SilentlyContinue).Enabled -eq 3
+          (Get-ItemPropertyValue 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo' -Name Enabled -ErrorAction SilentlyContinue) -eq 3
         SetScript: |
           & sudo.exe config --enable normal
     - resource: PSDscResources/Registry
       id: explorer-file-extensions
-      directives: { description: Show file extensions, allowPrerelease: true }
+      directives: { description: Show file extensions }
       settings:
         Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced
         ValueName: HideFileExt
         ValueType: Dword
-        ValueData: '0'
+        ValueData: ['0']
         Force: true
     - resource: PSDscResources/Registry
       id: explorer-hidden-files
-      directives: { description: Show hidden files, allowPrerelease: true }
+      directives: { description: Show hidden files }
       settings:
         Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced
         ValueName: Hidden
         ValueType: Dword
-        ValueData: '1'
+        ValueData: ['1']
         Force: true
 
     # --- Privacy, ads and nags ----------------------------------------------------------
     - resource: PSDscResources/Registry
       id: telemetry-required
-      directives: { description: Diagnostic data - required only, securityContext: elevated, allowPrerelease: true }
+      directives: { description: Diagnostic data - required only, securityContext: elevated }
       settings:
         Key: HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DataCollection
         ValueName: AllowTelemetry
         ValueType: Dword
-        ValueData: '1'
+        ValueData: ['1']
         Force: true
     - resource: PSDscResources/Registry
       id: tailored-experiences-off
-      directives: { description: Tailored experiences off, allowPrerelease: true }
+      directives: { description: Tailored experiences off }
       settings:
         Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Privacy
         ValueName: TailoredExperiencesWithDiagnosticDataEnabled
         ValueType: Dword
-        ValueData: '0'
+        ValueData: ['0']
         Force: true
     - resource: PSDscResources/Registry
       id: advertising-id-off
-      directives: { description: Advertising ID off, allowPrerelease: true }
+      directives: { description: Advertising ID off }
       settings:
         Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo
         ValueName: Enabled
         ValueType: Dword
-        ValueData: '0'
+        ValueData: ['0']
         Force: true
     # Suggestions, tips, lock-screen "fun facts", and silently installed suggested apps.
     - resource: PSDscResources/Script
       id: content-delivery-off
-      directives: { description: No suggestions, tips or auto-installed suggested apps, allowPrerelease: true }
+      directives: { description: No suggestions, tips or auto-installed suggested apps }
       settings:
         GetScript: |
           @{ Result = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' -ErrorAction SilentlyContinue | Out-String) }
@@ -187,8 +187,7 @@ properties:
                    'RotatingLockScreenOverlayEnabled', 'SubscribedContent-338387Enabled',
                    'SubscribedContent-338388Enabled', 'SubscribedContent-338389Enabled',
                    'SubscribedContent-353694Enabled', 'SubscribedContent-353696Enabled'
-          $props = Get-ItemProperty $key -ErrorAction SilentlyContinue
-          -not ($names | Where-Object { -not $props -or $props.$_ -ne 0 })
+          -not ($names | Where-Object { (Get-ItemPropertyValue $key -Name $_ -ErrorAction SilentlyContinue) -ne 0 })
         SetScript: |
           $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
           $names = 'SilentInstalledAppsEnabled', 'SystemPaneSuggestionsEnabled', 'SoftLandingEnabled',
@@ -199,120 +198,120 @@ properties:
           foreach ($n in $names) { New-ItemProperty -Path $key -Name $n -PropertyType DWord -Value 0 -Force | Out-Null }
     - resource: PSDscResources/Registry
       id: explorer-sync-ads-off
-      directives: { description: No sync-provider ads in File Explorer, allowPrerelease: true }
+      directives: { description: No sync-provider ads in File Explorer }
       settings:
         Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced
         ValueName: ShowSyncProviderNotifications
         ValueType: Dword
-        ValueData: '0'
+        ValueData: ['0']
         Force: true
     - resource: PSDscResources/Registry
       id: finish-setup-nag-off
-      directives: { description: No "Finish setting up your device" prompts, allowPrerelease: true }
+      directives: { description: No "Finish setting up your device" prompts }
       settings:
         Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement
         ValueName: ScoobeSystemSettingEnabled
         ValueType: Dword
-        ValueData: '0'
+        ValueData: ['0']
         Force: true
     - resource: PSDscResources/Registry
       id: start-web-search-off
-      directives: { description: No Bing web results in Start search, allowPrerelease: true }
+      directives: { description: No Bing web results in Start search }
       settings:
         Key: HKEY_CURRENT_USER\Software\Policies\Microsoft\Windows\Explorer
         ValueName: DisableSearchBoxSuggestions
         ValueType: Dword
-        ValueData: '1'
+        ValueData: ['1']
         Force: true
     - resource: PSDscResources/Registry
       id: widgets-off
-      directives: { description: Widgets off, securityContext: elevated, allowPrerelease: true }
+      directives: { description: Widgets off, securityContext: elevated }
       settings:
         Key: HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Dsh
         ValueName: AllowNewsAndInterests
         ValueType: Dword
-        ValueData: '0'
+        ValueData: ['0']
         Force: true
     # Start: pins only (no recent files, recently added apps, tips or promotions).
     - resource: PSDscResources/Registry
       id: start-recent-files-off
-      directives: { description: Start - no recent files, allowPrerelease: true }
+      directives: { description: Start - no recent files }
       settings:
         Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced
         ValueName: Start_TrackDocs
         ValueType: Dword
-        ValueData: '0'
+        ValueData: ['0']
         Force: true
     - resource: PSDscResources/Registry
       id: start-promotions-off
-      directives: { description: Start - no tips or promotions, allowPrerelease: true }
+      directives: { description: Start - no tips or promotions }
       settings:
         Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced
         ValueName: Start_IrisRecommendations
         ValueType: Dword
-        ValueData: '0'
+        ValueData: ['0']
         Force: true
     - resource: PSDscResources/Registry
       id: start-account-notifications-off
-      directives: { description: Start - no account notifications, allowPrerelease: true }
+      directives: { description: Start - no account notifications }
       settings:
         Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced
         ValueName: Start_AccountNotifications
         ValueType: Dword
-        ValueData: '0'
+        ValueData: ['0']
         Force: true
     - resource: PSDscResources/Registry
       id: start-recently-added-off
-      directives: { description: Start - no recently added apps, securityContext: elevated, allowPrerelease: true }
+      directives: { description: Start - no recently added apps, securityContext: elevated }
       settings:
         Key: HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Explorer
         ValueName: HideRecentlyAddedApps
         ValueType: Dword
-        ValueData: '1'
+        ValueData: ['1']
         Force: true
 
     # --- Personal preferences ------------------------------------------------------------
     - resource: PSDscResources/Registry
       id: dark-mode-apps
-      directives: { description: Dark mode (apps), allowPrerelease: true }
+      directives: { description: Dark mode (apps) }
       settings:
         Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize
         ValueName: AppsUseLightTheme
         ValueType: Dword
-        ValueData: '0'
+        ValueData: ['0']
         Force: true
     - resource: PSDscResources/Registry
       id: dark-mode-system
-      directives: { description: Dark mode (Windows), allowPrerelease: true }
+      directives: { description: Dark mode (Windows) }
       settings:
         Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize
         ValueName: SystemUsesLightTheme
         ValueType: Dword
-        ValueData: '0'
+        ValueData: ['0']
         Force: true
     - resource: PSDscResources/Registry
       id: taskbar-search-box
-      directives: { description: Taskbar search as a box, allowPrerelease: true }
+      directives: { description: Taskbar search as a box }
       settings:
         Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Search
         ValueName: SearchboxTaskbarMode
         ValueType: Dword
-        ValueData: '2'
+        ValueData: ['2']
         Force: true
     # Visual effects: transparency and animations off (Settings > Accessibility >
     # Visual effects). Font smoothing stays on.
     - resource: PSDscResources/Registry
       id: transparency-off
-      directives: { description: Transparency effects off, allowPrerelease: true }
+      directives: { description: Transparency effects off }
       settings:
         Key: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize
         ValueName: EnableTransparency
         ValueType: Dword
-        ValueData: '0'
+        ValueData: ['0']
         Force: true
     - resource: PSDscResources/Script
       id: animations-off
-      directives: { description: Animation effects off, allowPrerelease: true }
+      directives: { description: Animation effects off }
       settings:
         GetScript: |
           @{ Result = (Get-ItemProperty 'HKCU:\Control Panel\Desktop\WindowMetrics').MinAnimate }
@@ -328,7 +327,7 @@ properties:
     # System sounds off: the "No Sounds" scheme, plus no startup sound.
     - resource: PSDscResources/Script
       id: system-sounds-off
-      directives: { description: No system sounds, allowPrerelease: true }
+      directives: { description: No system sounds }
       settings:
         GetScript: |
           @{ Result = (Get-ItemProperty 'HKCU:\AppEvents\Schemes').'(default)' }
@@ -344,18 +343,18 @@ properties:
               ForEach-Object { Set-ItemProperty -Path $_.PSPath -Name '(default)' -Value '' }
     - resource: PSDscResources/Registry
       id: startup-sound-off
-      directives: { description: No startup sound, securityContext: elevated, allowPrerelease: true }
+      directives: { description: No startup sound, securityContext: elevated }
       settings:
         Key: HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\LogonUI\BootAnimation
         ValueName: DisableStartupSound
         ValueType: Dword
-        ValueData: '1'
+        ValueData: ['1']
         Force: true
     # Inverted mouse pointer: Windows' own "Windows Inverted" scheme, read from its
     # scheme definition rather than hard-coding cursor files.
     - resource: PSDscResources/Script
       id: pointer-inverted
-      directives: { description: Inverted mouse pointer, allowPrerelease: true }
+      directives: { description: Inverted mouse pointer }
       settings:
         GetScript: |
           @{ Result = (Get-ItemProperty 'HKCU:\Control Panel\Cursors').'(default)' }
@@ -376,39 +375,96 @@ properties:
           Add-Type -Namespace MachineSetup -Name Cursors -MemberDefinition '[DllImport("user32.dll")] public static extern bool SystemParametersInfo(uint a, uint b, System.IntPtr c, uint d);'
           [MachineSetup.Cursors]::SystemParametersInfo(0x57, 0, [System.IntPtr]::Zero, 3) | Out-Null
 
+    # --- Preinstalled apps ----------------------------------------------------------------
+    # Removed for every account and deprovisioned, so new accounts and feature updates
+    # don't bring them back. Names: Get-AppxProvisionedPackage -Online.
+    - resource: PSDscResources/Script
+      id: remove-preinstalled-apps
+      directives: { description: Remove unwanted preinstalled apps, securityContext: elevated }
+      settings:
+        GetScript: |
+          @{ Result = ((Get-AppxProvisionedPackage -Online).DisplayName -join ', ') }
+        TestScript: |
+          $remove = 'Clipchamp.Clipchamp', 'Microsoft.BingNews', 'Microsoft.BingSearch', 'Microsoft.BingWeather',
+                    'Microsoft.GetHelp', 'Microsoft.MicrosoftOfficeHub', 'Microsoft.MicrosoftSolitaireCollection',
+                    'Microsoft.OutlookForWindows', 'Microsoft.PowerAutomateDesktop', 'Microsoft.Todos',
+                    'Microsoft.Windows.DevHome', 'Microsoft.WindowsFeedbackHub', 'Microsoft.YourPhone',
+                    'MicrosoftWindows.CrossDevice', 'MicrosoftWindows.Client.WebExperience', 'MSTeams'
+          $provisioned = (Get-AppxProvisionedPackage -Online).DisplayName
+          $installed = (Get-AppxPackage -AllUsers).Name
+          -not ($remove | Where-Object { $provisioned -contains $_ -or $installed -contains $_ })
+        SetScript: |
+          $remove = 'Clipchamp.Clipchamp', 'Microsoft.BingNews', 'Microsoft.BingSearch', 'Microsoft.BingWeather',
+                    'Microsoft.GetHelp', 'Microsoft.MicrosoftOfficeHub', 'Microsoft.MicrosoftSolitaireCollection',
+                    'Microsoft.OutlookForWindows', 'Microsoft.PowerAutomateDesktop', 'Microsoft.Todos',
+                    'Microsoft.Windows.DevHome', 'Microsoft.WindowsFeedbackHub', 'Microsoft.YourPhone',
+                    'MicrosoftWindows.CrossDevice', 'MicrosoftWindows.Client.WebExperience', 'MSTeams'
+          foreach ($name in $remove) {
+              Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq $name } |
+                  ForEach-Object { Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName | Out-Null }
+              Get-AppxPackage -AllUsers -Name $name | ForEach-Object { Remove-AppxPackage -Package $_.PackageFullName -AllUsers }
+          }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: onedrive-absent
+      directives: { description: OneDrive removed (Proton Drive and Google Drive instead), securityContext: elevated }
+      settings: { id: Microsoft.OneDrive, source: winget, Ensure: Absent }
+
     # --- Applications ---------------------------------------------------------------
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: brave
       directives: { description: Brave, securityContext: elevated }
-      settings: { id: Brave.Brave, source: winget }  # verify
+      settings: { id: Brave.Brave, source: winget }
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: chrome
       directives: { description: Google Chrome, securityContext: elevated }
-      settings: { id: Google.Chrome, source: winget }  # verify
+      settings: { id: Google.Chrome, source: winget }
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: firefox
       directives: { description: Firefox, securityContext: elevated }
-      settings: { id: Mozilla.Firefox, source: winget }  # verify
+      settings: { id: Mozilla.Firefox, source: winget }
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: 1password
       directives: { description: 1Password, securityContext: elevated }
-      settings: { id: AgileBits.1Password, source: winget }  # verify
+      settings: { id: AgileBits.1Password, source: winget }
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: 1password-cli
       directives: { description: 1Password CLI, securityContext: elevated }
-      settings: { id: AgileBits.1Password.CLI, source: winget }  # verify
+      settings: { id: AgileBits.1Password.CLI, source: winget }
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: claude
       directives: { description: Claude Desktop, securityContext: elevated }
-      settings: { id: Anthropic.Claude, source: winget }  # verify
+      settings: { id: Anthropic.Claude, source: winget }
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: typora
       directives: { description: Typora, securityContext: elevated }
       settings: { id: appmakes.Typora, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
+    - resource: PSDscResources/Script
       id: blender
       directives: { description: Blender 5.2 LTS (matches Linux), securityContext: elevated }
-      settings: { id: BlenderFoundation.Blender, source: winget, version: 5.2.2 }  # verify version string
+      settings:
+        # Pinned like Linux: scripts/blender-pin.sh prints both platforms' checksums.
+        # The version appears in TestScript and SetScript; bump both.
+        # download.blender.org rejects automated clients (HTTP 403), so the winget
+        # package can't download; an official mirror is used instead.
+        GetScript: |
+          $b = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
+              Where-Object { $_.PSObject.Properties['DisplayName'] -and $_.DisplayName -eq 'blender' }
+          @{ Result = [string]($b | Select-Object -First 1 -ExpandProperty DisplayVersion) }
+        TestScript: |
+          $b = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
+              Where-Object { $_.PSObject.Properties['DisplayName'] -and $_.DisplayName -eq 'blender' }
+          @($b | Where-Object { $_.DisplayVersion -eq '5.2.2' }).Count -gt 0
+        SetScript: |
+          $version = '5.2.2'
+          $sha256 = '8dac2751ebe8e3867327eec52f1ef9b344c0a27499bb6221a301b4b35f2828d1'
+          $file = "blender-$version-windows-x64.msi"
+          $msi = Join-Path $env:TEMP $file
+          $series = $version -replace '\.\d+$', ''
+          Invoke-WebRequest -UseBasicParsing -Uri "https://mirrors.ocf.berkeley.edu/blender/release/Blender$series/$file" -OutFile $msi
+          if ((Get-FileHash $msi -Algorithm SHA256).Hash -ne $sha256) { Remove-Item $msi; throw "Checksum mismatch for $file." }
+          $p = Start-Process msiexec.exe -ArgumentList '/i', "`"$msi`"", '/qn', '/norestart' -Wait -PassThru
+          Remove-Item $msi
+          if ($p.ExitCode -notin 0, 3010) { throw "Blender installer failed with exit code $($p.ExitCode)." }
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: vlc
       directives: { description: VLC, securityContext: elevated }
@@ -432,11 +488,11 @@ properties:
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: proton-drive
       directives: { description: Proton Drive, securityContext: elevated }
-      settings: { id: Proton.ProtonDrive, source: winget }  # verify
+      settings: { id: Proton.ProtonDrive, source: winget }
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: google-drive
       directives: { description: Google Drive, securityContext: elevated }
-      settings: { id: Google.GoogleDrive, source: winget }  # verify
+      settings: { id: Google.GoogleDrive, source: winget }
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: powershell
       directives: { description: PowerShell 7, securityContext: elevated }
@@ -446,7 +502,7 @@ properties:
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: git
       directives: { description: Git, securityContext: elevated }
-      settings: { id: Git.Git, source: winget }  # verify
+      settings: { id: Git.Git, source: winget }
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: github-desktop
       directives: { description: GitHub Desktop, securityContext: elevated }
@@ -458,15 +514,20 @@ properties:
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: cmake
       directives: { description: CMake, securityContext: elevated }
-      settings: { id: Kitware.CMake, source: winget }  # verify
+      settings: { id: Kitware.CMake, source: winget }
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: miniforge
       directives: { description: Miniforge (conda), securityContext: elevated }
       settings: { id: CondaForge.Miniforge3, source: winget }
     - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: vcredist
+      directives: { description: Visual C++ runtime (mise and others depend on it), securityContext: elevated }
+      settings: { id: Microsoft.VCRedist.2015+.x64, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: mise
       directives: { description: mise (Node, uv and other per-user tools), securityContext: elevated }
-      settings: { id: jdx.mise, source: winget }  # verify
+      settings: { id: jdx.mise, source: winget }
+      dependsOn: [vcredist]
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: wsl
       directives: { description: WSL, securityContext: elevated }
@@ -474,20 +535,20 @@ properties:
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: docker-desktop
       directives: { description: Docker Desktop (WSL2 backend), securityContext: elevated }
-      settings: { id: Docker.DockerDesktop, source: winget }  # verify
+      settings: { id: Docker.DockerDesktop, source: winget }
       dependsOn: [wsl]
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: cuda
       directives: { description: CUDA toolkit, securityContext: elevated }
-      settings: { id: Nvidia.CUDA, source: winget }  # verify; pin a version once a project needs one
+      settings: { id: Nvidia.CUDA, source: winget }  # pin a version once a project needs one
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: unity-hub
       directives: { description: Unity Hub, securityContext: elevated }
-      settings: { id: Unity.UnityHub, source: winget }  # verify
+      settings: { id: Unity.UnityHub, source: winget }
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: epic-launcher
       directives: { description: Epic Games Launcher (Unreal Engine), securityContext: elevated }
-      settings: { id: EpicGames.EpicGamesLauncher, source: winget }  # verify
+      settings: { id: EpicGames.EpicGamesLauncher, source: winget }
 
     # Visual Studio and its workloads are added after the first VM run confirms the
     # current product/channel IDs for Microsoft.VisualStudio.DSC/VSComponents.
