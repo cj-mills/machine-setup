@@ -14,6 +14,7 @@
       tags: always
   roles:
     - {role: base, tags: base}
+    - {role: mounts, tags: mounts}
     - {role: vendor_repos, tags: vendor_repos}
     - {role: release_debs, tags: release_debs}
     - {role: blender, tags: blender}

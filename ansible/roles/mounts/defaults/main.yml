@@ -1,0 +1,21 @@
+# Internal data drives, mounted by filesystem UUID at purpose-named paths
+# (/mnt/projects, /mnt/data, ...) so paths survive a drive replacement.
+#
+# mounts_list entries:
+#   path    mount point
+#   uuid    filesystem UUID (`lsblk -o NAME,UUID,LABEL`)
+#   fstype  e.g. ext4
+#   name    optional display name in the file manager sidebar
+#   opts    mount options (default: defaults,nofail,x-gvfs-show)
+#   owner, group, mode   applied to the filesystem's root directory
+#                        (default: primary_user, primary_user, 0755)
+mounts_list: []
+
+# Compatibility symlinks from old paths to new mount points. An old path that is
+# still a mount point is left alone; once it is an empty, unmounted directory
+# (e.g. after the reboot following its retirement) it becomes the symlink.
+mounts_aliases: []
+
+# Mount points to drop from fstab without unmounting them; they are simply not
+# mounted at the next boot. Use for paths that are in use while converging.
+mounts_retired: []
