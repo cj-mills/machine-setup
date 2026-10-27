@@ -126,6 +126,8 @@ if (-not (Get-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -ErrorAction Silentl
     New-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -DisplayName 'OpenSSH Server (sshd)' `
         -Direction Inbound -Protocol TCP -LocalPort 22 -Action Allow | Out-Null
 }
+# The VM's NAT network is classified Public; the capability's rule may not cover it.
+Set-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -Profile Any -Enabled True
 Write-Output 'Test VM: SSH enabled.'
 HOOK
 }
