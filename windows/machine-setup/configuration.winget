@@ -393,6 +393,30 @@ properties:
     # codecs, App Installer (winget), Store, Security, Calculator, Notepad, Paint,
     # Photos, Snipping Tool, Camera, Terminal, and the Xbox identity/Game Bar
     # components games use. Remote help, if ever needed: RustDesk (cross-platform).
+    #
+    # Deprovisioning doesn't stop Windows Update's orchestrator, whose "expedited apps"
+    # workflows (`usoclient CrossDeviceUpdate` etc., UScheduler_Oobe) install their app
+    # from the Store whenever it's missing: in the VM, CrossDevice came back twice within
+    # two hours of removal. Deleting a workflow stops it. Edge, Store business-critical
+    # updates (IA) and language packs (LXP) keep theirs.
+    - resource: PSDscResources/Script
+      id: no-reinstall-workflows
+      directives: { description: Windows Update doesn't reinstall removed apps, securityContext: elevated }
+      settings:
+        # .NET registry API: PSDscResources/Registry can't remove a key in this runner
+        # (it resolves the key as a file path). TFL is consumer Teams (MSTeams).
+        GetScript: |
+          $k = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe')
+          @{ Result = if ($k) { $k.GetSubKeyNames() -join ', ' } else { '' } }
+        TestScript: |
+          $base = 'SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe'
+          -not ('CrossDeviceUpdate', 'DevHomeUpdate', 'OutlookUpdate', 'TFLUpdate' |
+              Where-Object { [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("$base\$_") })
+        SetScript: |
+          $k = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe', $true)
+          if ($k) {
+              foreach ($name in 'CrossDeviceUpdate', 'DevHomeUpdate', 'OutlookUpdate', 'TFLUpdate') { $k.DeleteSubKeyTree($name, $false) }
+          }
     - resource: PSDscResources/Script
       id: remove-preinstalled-apps
       directives: { description: Remove unwanted preinstalled apps, securityContext: elevated }
@@ -433,6 +457,7 @@ properties:
               }
           } -args (,$remove)
           if ($LASTEXITCODE) { throw "App removal failed with exit code $LASTEXITCODE." }
+      dependsOn: [no-reinstall-workflows]
     - resource: PSDscResources/Script
       id: onedrive-absent
       directives: { description: OneDrive removed (Proton Drive and Google Drive instead) }

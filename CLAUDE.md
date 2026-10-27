@@ -72,7 +72,15 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
   WindowsOptionalFeature needs `dism.exe`; Script tests read the registry with
   `[Microsoft.Win32.Registry]::GetValue` (Get-ItemPropertyValue throws on missing values);
   `winget configure --enable` updates winget mid-run (wait); the first unit using a
-  newly installed module can fail (bootstrap runs a test pass first).
+  newly installed module can fail (bootstrap runs a test pass first);
+  PSDscResources/Registry can't remove a key (`Ensure: Absent` resolves it as a file
+  path): use a Script unit with the .NET registry API.
+- Removed apps coming back: Windows Update's orchestrator runs "expedited apps"
+  workflows (`HKLM\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe`,
+  run times in `..\USOShared\ScheduleTimeDump`) that install their app from the Store
+  whenever it's missing; Deprovisioned keys don't stop them. Trace a reinstall with the
+  Store/Operational log's `ClientAppId = Acquisition;<Name>_UO-UsoClient-...`. In the
+  VM, event times jump 7 h once `rtc-utc` takes effect at the next boot.
 - A fresh Windows runs no PowerShell scripts (policy "Restricted"); the test harness's
   own `-ExecutionPolicy Bypass` was inherited by its payloads and hid this until the
   real install. Test the exact command the runbook gives, with nothing the harness adds.
