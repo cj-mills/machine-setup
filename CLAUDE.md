@@ -81,6 +81,9 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
   whenever it's missing; Deprovisioned keys don't stop them. Trace a reinstall with the
   Store/Operational log's `ClientAppId = Acquisition;<Name>_UO-UsoClient-...`. In the
   VM, event times jump 7 h once `rtc-utc` takes effect at the next boot.
+- winget fails a package whose vendor URL is unversioned (e.g. Chrome's enterprise MSI)
+  with `0x8A150011` (checksum mismatch) after each vendor release until winget-pkgs
+  catches up: install those from the vendor and verify the Authenticode signer instead.
 - A fresh Windows runs no PowerShell scripts (policy "Restricted"); the test harness's
   own `-ExecutionPolicy Bypass` was inherited by its payloads and hid this until the
   real install. Test the exact command the runbook gives, with nothing the harness adds.

@@ -484,10 +484,29 @@ properties:
       id: brave
       directives: { description: Brave, securityContext: elevated }
       settings: { id: Brave.Brave, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
+    - resource: PSDscResources/Script
       id: chrome
       directives: { description: Google Chrome, securityContext: elevated }
-      settings: { id: Google.Chrome, source: winget }
+      settings:
+        # Google's enterprise MSI, verified by its Google LLC signature, not winget:
+        # Google replaces the file at this unversioned URL with every release, so
+        # winget's pinned checksum fails (0x8A150011) until its manifest catches up.
+        # Like Linux (Google's apt repo), Chrome then updates itself.
+        GetScript: |
+          @{ Result = [string](Test-Path "$env:ProgramFiles\Google\Chrome\Application\chrome.exe") }
+        TestScript: |
+          Test-Path "$env:ProgramFiles\Google\Chrome\Application\chrome.exe"
+        SetScript: |
+          $msi = Join-Path $env:TEMP 'googlechromestandaloneenterprise64.msi'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi' -OutFile $msi
+          $sig = Get-AuthenticodeSignature -FilePath $msi
+          if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch '(^|, )O=Google LLC(,|$)') {
+              Remove-Item $msi
+              throw "Chrome installer signature is not a valid Google LLC signature ($($sig.Status): $($sig.SignerCertificate.Subject))."
+          }
+          $p = Start-Process msiexec.exe -ArgumentList '/i', "`"$msi`"", '/qn', '/norestart' -Wait -PassThru
+          Remove-Item $msi
+          if ($p.ExitCode -notin 0, 3010) { throw "Chrome installer failed with exit code $($p.ExitCode)." }
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: firefox
       directives: { description: Firefox, securityContext: elevated }
