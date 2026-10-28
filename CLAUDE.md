@@ -81,6 +81,9 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
   whenever it's missing; Deprovisioned keys don't stop them. Trace a reinstall with the
   Store/Operational log's `ClientAppId = Acquisition;<Name>_UO-UsoClient-...`. In the
   VM, event times jump 7 h once `rtc-utc` takes effect at the next boot.
+- winget fails a package whose vendor URL is unversioned (e.g. Chrome's enterprise MSI)
+  with `0x8A150011` (checksum mismatch) after each vendor release until winget-pkgs
+  catches up: install those from the vendor and verify the Authenticode signer instead.
 - A fresh Windows runs no PowerShell scripts (policy "Restricted"); the test harness's
   own `-ExecutionPolicy Bypass` was inherited by its payloads and hid this until the
   real install. Test the exact command the runbook gives, with nothing the harness adds.
@@ -94,9 +97,9 @@ removed apps stayed removed for 2 h including a reboot, after the orchestrator
 workflows that reinstalled them were deleted).
 
 Next:
-1. Real Windows install, following `docs/windows-install.md` (user runs it). Installed
-   and signed in; the first `bootstrap.ps1` run hit the execution policy (now fixed).
-   VM harness: after a reboot post-apply, autologon no longer happened (no
+1. Real Windows install, following `docs/windows-install.md` (user runs it). Installed;
+   bootstrap applied 63/64 (Chrome hit the winget checksum race, now a signed-MSI unit:
+   re-run bootstrap); Linux ESP restored. Left: step 4's manual steps. VM harness: after a reboot post-apply, autologon no longer happened (no
    interactive logon attempted), so `desktop-run` timed out waiting for the desktop;
    SSH checks still work.
 2. Linux dotfiles into `home/`: `.bashrc` (history, conda init), git with 1Password SSH
