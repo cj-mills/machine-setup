@@ -94,14 +94,15 @@ Done and verified: Linux system layer (VM, clean install + idempotent re-runs); 
 mounts on the workstation (`/mnt/projects` with the old path as a bind mount, `/mnt/data`);
 Windows layer end to end in the VM (64 units with the runbook's exact command; the
 removed apps stayed removed for 2 h including a reboot, after the orchestrator
-workflows that reinstalled them were deleted).
+workflows that reinstalled them were deleted). Real Windows install on the second
+990 PRO (2026-10-27): all 64 units applied, and a test pass after a restart found the
+app removal still in place; BitLocker on (key in 1Password); Linux ESP restored.
 
 Next:
-1. Real Windows install, following `docs/windows-install.md` (user runs it). Installed;
-   bootstrap applied 63/64 (Chrome hit the winget checksum race, now a signed-MSI unit:
-   re-run bootstrap); Linux ESP restored. Left: step 4's manual steps. VM harness: after a reboot post-apply, autologon no longer happened (no
-   interactive logon attempted), so `desktop-run` timed out waiting for the desktop;
-   SSH checks still work.
+1. Windows leftovers (user, manual): Start menu pins; VLC as the audio default; the
+   other ArtCraft apps if wanted. VM harness: after a reboot post-apply, autologon no
+   longer happened (no interactive logon attempted), so `desktop-run` timed out
+   waiting for the desktop; SSH checks still work.
 2. Linux dotfiles into `home/`: `.bashrc` (history, conda init), git with 1Password SSH
    signing, `~/.local/bin` scripts (read each before committing: public repo), VS Code
    extensions, curated GNOME settings incl. event sounds off, Miniforge, Proton Drive
