@@ -104,26 +104,31 @@ Standalone transcript archive and analytics timers live on the workstation (2026
 the `cjm-*` and `medium` timers are off, and `medium` is removed.
 
 Next:
-1. Reorganize the data drives and retire the cjm-substrate era before the clean install.
-   Layout: `/mnt/projects/` = `cj-mills/`, `upstream/`, `clients/`, `blender/`, `notes/`,
-   `scratch/`, `records/`, `archive/cjm-era/`; `/mnt/data/` = `datasets/`, `models/`,
-   `media/`, `vm/`. Decisions:
-   - Era repos stay usable: their Qt tools (`cjm-substrate/.cjm/bin/scratchpad`,
-     `cjm-graph-workbench-qt`) need env `cjm-transcript-correction-core`, whose editable
-     installs and scripts hard-code `/mnt/SN850X_8TB_EXT4/Projects/GitHub/cj-mills`. Keep
-     that path and `.../claude-code-scratchpads` as compatibility symlinks into the
-     archive (`~/cjm-dev-graph-private` and `~/.cjm` likewise), and copy `~/miniforge3`
-     to `/mnt/data` before the wipe. Test the apps on 26.04 in `ms-test`.
-   - Everything in that folder moves to `archive/cjm-era` except `christianjmills`,
-     whatever its GitHub visibility; `nalvo` and `cjm-archive` go to `archive/` too.
-   - GitHub: 41 of its `cjm-*` repos go private, then archived. Not `cjm-demucs-v4`,
+1. Finish reorganizing the data drives and retire the cjm-substrate era before the clean
+   install. Layout: `docs/design.md`, "Content layout". `/mnt/projects` renames are done
+   (2026-10-30). `archive/cjm-era` is reached through compatibility links, verified: 21
+   editable installs resolve, both Qt apps start, `dev-graph.db` passes its check.
+   Copied and checksummed, originals untouched: `BX500_2TB_2/Backups` (now in
+   `records/backups`), `/mnt/Storage` (`archive/storage-partition`), `~/miniforge3`
+   (`/mnt/data/transfer`). Left:
+   - Cross-drive copies to `/mnt/data`, verified before the user deletes originals:
+     `Media_Library` (2.6 TB), `Datasets`, `Model_Cache` (then repoint
+     `~/.cache/huggingface`), `ISOs`, the 65 GB VMs in `~/.local/share/machine-setup`,
+     and the 27 GB of course videos in `notes/`. `Utility_CLI_Scripts` waits for step 2.
+   - Last, in one go: move `Projects/Utility_Projects/*` into `cj-mills/` with
+     `machine-setup`, and rename their `~/.claude/projects` folders (`christianjmills`
+     too). `protonmail-archive`'s conda env points at its current path.
+   - Pre-wipe sync: `/mnt/Storage` again (`~/Downloads` still points there); move
+     `~/cjm-dev-graph-private` and `~/.cjm` into the archive with links back; on the
+     clean install, `/mnt/SN850X_8TB_EXT4` becomes a plain folder of compatibility links
+     in the `mounts` role, not a bind mount. Test the Qt apps on 26.04 in `ms-test`,
+     restoring only env `cjm-transcript-correction-core`.
+   - GitHub: 41 `cjm-*` repos go private, then archived. Not `cjm-demucs-v4`,
      `cjm-design-system`, tutorial packages, or the 59 cjm repos outside that folder.
-   - Merge `BX500_2TB_2/Backups` (95 GB) into Backups before wiping that drive; drop its
-     `SteamLibrary` and `Simtraxx`. It then becomes `/mnt/backup` (ext4), the interim
-     copy of what can't be re-obtained, `Media_Library/Images` included. BX500 #1 already
-     matches `/mnt/archive` (129 GB `archive/invigo`).
-   - `/mnt/Storage` and the old Windows partition are on the Linux drive: evacuate
-     `/mnt/Storage` and replace the `~/Documents`-style symlinks. The 100 GB ext4
+   - `BX500_2TB_2` is safe to wipe (user runs it): it becomes `/mnt/backup` (ext4), the
+     interim copy of what the layout marks as backed up. BX500 #1 already matches
+     `/mnt/archive` (129 GB `archive/invigo`).
+   - The old Windows partition and `/mnt/Storage` go with the Linux drive; the 100 GB ext4
      partition is the disposable `testbed`; nothing on it is kept.
    - Windows: Dev Drive VHDX now rather than later (VM first); test `wsl --mount` on the
      real machine to choose between mounting and copying data. Windows leftovers (user):

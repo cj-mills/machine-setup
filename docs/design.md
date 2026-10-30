@@ -102,6 +102,26 @@ paths, so paths survive a drive replacement. Drives are addressed in commands by
 Data-drive filesystems use no root reservation (`-m 0`) and GPT type "Linux
 filesystem". Mounts are managed by the `mounts` role from `host_vars`.
 
+## Content layout (workstation)
+
+Content is sorted by how it behaves, which also decides what gets backed up.
+
+| Path | Holds | Backed up |
+|---|---|---|
+| `/mnt/projects/cj-mills/` | Your own repos and active projects | Yes |
+| `/mnt/projects/clients/`, `blender/`, `notes/` | Client work, Blender projects, notes | Yes |
+| `/mnt/projects/records/` | Collected, can't be re-obtained, no single project owns it: `claude-transcripts/`, `site-analytics/`, `backups/` | Yes |
+| `/mnt/projects/archive/` | Retired, kept for reference: `cjm-era/` and older repos | Yes |
+| `/mnt/projects/upstream/` | Clones of other people's repos | No |
+| `/mnt/projects/scratch/` | Disposable experiments | No |
+| `/mnt/data/datasets/`, `models/`, `vm/` | Datasets, model weights, test VMs and ISOs | No |
+| `/mnt/data/media/` | Read-mostly library; `images/` can't be re-obtained, so it is backed up | `images/` only |
+
+The Qt tools from the cjm-substrate era keep working from `archive/cjm-era` through
+compatibility links at their old paths, because their conda environment's editable
+installs and scripts hard-code `/mnt/SN850X_8TB_EXT4/Projects/GitHub/cj-mills`. Editing
+those would be rework on retired code; the links go when the era's tools do.
+
 ## Decisions
 
 | Date | Decision |
