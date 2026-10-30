@@ -1,0 +1,236 @@
+#!/usr/bin/env python3
+"""Pull the site's traffic data into dated snapshots of raw API responses.
+
+Cloudflare Web Analytics keeps about 26 weeks and Search Console about 16 months, and
+Cloudflare serves a day at full resolution for under a week, so these snapshots are the
+durable record. Each run starts where the snapshots on disk end, re-reading a few days,
+and writes <root>/<source>/<today>/ with one JSON file per shape and month, plus a
+manifest. A snapshot is never overwritten.
+
+Standard library plus the openssl CLI, so an unattended timer needs nothing installed.
+Settings: ~/.config/site-analytics/config.json. Credentials are files it points to.
+"""
+import argparse
+import base64
+import calendar
+import datetime as dt
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+MANIFEST = "manifest.json"
+DEFAULT_CONFIG = "~/.config/site-analytics/config.json"
+HTTP_TIMEOUT = 120
+
+CF_ENDPOINT = "https://api.cloudflare.com/client/v4/graphql"
+CF_LIMIT = 10000
+CF_RETENTION_DAYS = 183
+CF_CONFIDENCE = ("confidence(level:0.95){level count{estimate lower upper sampleSize isValid} "
+                 "sum{visits{estimate lower upper sampleSize isValid}}}")
+CF_SHAPES = {  # Bot rows are kept: raw data, for whatever reads it later to filter.
+    "daily-path": "count sum{visits} avg{sampleInterval} dimensions{date requestHost requestPath bot}",
+    "month-path": f"count sum{{visits}} avg{{sampleInterval}} {CF_CONFIDENCE} dimensions{{requestHost requestPath bot}}",
+    "month-referer": "count sum{visits} avg{sampleInterval} dimensions{requestHost requestPath refererHost bot}",
+}
+CF_QUERY = ("query($a:String!,$s:Date!,$e:Date!,$t:String!,$n:Int!){viewer{accounts(filter:{accountTag:$a}){"
+            "rows:rumPageloadEventsAdaptiveGroups(limit:$n,filter:{date_geq:$s,date_leq:$e,siteTag:$t}){%s}}}}")
+
+GSC_ENDPOINT = "https://searchconsole.googleapis.com/webmasters/v3"
+GSC_SCOPE = "https://www.googleapis.com/auth/webmasters.readonly"
+GSC_LIMIT = 25000
+GSC_RETENTION_DAYS = 486
+GSC_SHAPES = {"page-date": ["page", "date"], "page-query-date": ["page", "query", "date"]}
+
+# Days re-read before the end of the snapshots: Search Console revises recent days.
+OVERLAP_DAYS = {"cloudflare": 1, "search-console": 4}
+RETENTION_DAYS = {"cloudflare": CF_RETENTION_DAYS, "search-console": GSC_RETENTION_DAYS}
+
+
+def read_secret(path):
+    return Path(path).expanduser().read_text().strip()
+
+
+def months(first, last):
+    """Split a date range into calendar-month pieces."""
+    day = first
+    while day <= last:
+        end = min(dt.date(day.year, day.month, calendar.monthrange(day.year, day.month)[1]), last)
+        yield day, end
+        day = end + dt.timedelta(days=1)
+
+
+def post_json(url, body, token):
+    request = urllib.request.Request(url, data=json.dumps(body).encode(), headers={
+        "Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+    with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT) as response:
+        return json.load(response)
+
+
+def utc_now():
+    return dt.datetime.now(dt.timezone.utc).isoformat()
+
+
+def pull_cloudflare(conf, first, last):
+    token = read_secret(conf["token_file"])
+    out = {}
+    for start, end in months(first, last):
+        for shape, fields in CF_SHAPES.items():
+            query = CF_QUERY % fields
+            variables = {"a": conf["account"], "s": start.isoformat(), "e": end.isoformat(),
+                         "t": conf["site_tag"], "n": CF_LIMIT}
+            pulled_at = utc_now()
+            response = post_json(CF_ENDPOINT, {"query": query, "variables": variables}, token)
+            if response.get("errors"):
+                raise RuntimeError(f"cloudflare {shape} {start}..{end}: {response['errors']}")
+            rows = response["data"]["viewer"]["accounts"][0]["rows"]
+            if len(rows) >= CF_LIMIT:  # Refuse rather than keep a silently truncated month.
+                raise RuntimeError(f"cloudflare {shape} {start}..{end}: {len(rows)} rows reached the limit")
+            out[f"{shape}-{start:%Y-%m-%d}.json"] = {
+                "source": "cloudflare-web-analytics", "dataset": "rumPageloadEventsAdaptiveGroups",
+                "site_tag": conf["site_tag"], "shape": shape, "window": [start.isoformat(), end.isoformat()],
+                "pulled_at": pulled_at, "query": query,
+                "variables": {k: v for k, v in variables.items() if k != "a"},
+                "row_count": len(rows), "response": response}
+    return out
+
+
+def sign_rs256(private_key_pem, data):
+    """RS256 with the openssl CLI; the key travels through a pipe and never touches disk."""
+    read_end, write_end = os.pipe()
+    try:
+        os.write(write_end, private_key_pem.encode())
+        os.close(write_end)
+        result = subprocess.run(["openssl", "dgst", "-sha256", "-sign", f"/dev/fd/{read_end}"],
+                                input=data, capture_output=True, pass_fds=[read_end], check=True)
+    finally:
+        os.close(read_end)
+    return result.stdout
+
+
+def search_console_token(key_file):
+    """A service-account access token (the OAuth JWT bearer grant)."""
+    key = json.loads(read_secret(key_file))
+    encode = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=")
+    now = int(dt.datetime.now(dt.timezone.utc).timestamp())
+    header = encode(json.dumps({"alg": "RS256", "typ": "JWT"}).encode())
+    claims = encode(json.dumps({"iss": key["client_email"], "scope": GSC_SCOPE, "aud": key["token_uri"],
+                                "iat": now, "exp": now + 600}).encode())
+    signature = encode(sign_rs256(key["private_key"], header + b"." + claims))
+    body = urllib.parse.urlencode({"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                                   "assertion": (header + b"." + claims + b"." + signature).decode()}).encode()
+    with urllib.request.urlopen(urllib.request.Request(key["token_uri"], data=body), timeout=HTTP_TIMEOUT) as r:
+        return json.load(r)["access_token"]
+
+
+def pull_search_console(conf, first, last):
+    token = search_console_token(conf["key_file"])
+    url = f"{GSC_ENDPOINT}/sites/{urllib.parse.quote(conf['property'], safe='')}/searchAnalytics/query"
+    out = {}
+    for start, end in months(first, last):
+        for shape, dimensions in GSC_SHAPES.items():
+            pages, start_row = [], 0
+            pulled_at = utc_now()
+            while True:
+                body = {"startDate": start.isoformat(), "endDate": end.isoformat(), "dimensions": dimensions,
+                        "rowLimit": GSC_LIMIT, "startRow": start_row, "dataState": "all"}
+                response = post_json(url, body, token)
+                if response.get("error"):
+                    raise RuntimeError(f"search console {shape} {start}..{end}: {response['error']}")
+                pages.append({"request": body, "response": response})
+                got = len(response.get("rows") or [])
+                if got < GSC_LIMIT:
+                    break
+                start_row += got
+            out[f"{shape}-{start:%Y-%m-%d}.json"] = {
+                "source": "search-console", "property": conf["property"], "shape": shape,
+                "window": [start.isoformat(), end.isoformat()], "pulled_at": pulled_at,
+                "row_count": sum(len(p["response"].get("rows") or []) for p in pages), "pages": pages}
+    return out
+
+
+def covered_until(source_dir):
+    """The last day any snapshot of this source reaches, or None."""
+    last = None
+    for manifest in sorted(source_dir.glob(f"*/{MANIFEST}")):
+        for entry in json.loads(manifest.read_text()).get("files") or []:
+            if entry.get("window"):
+                end = dt.date.fromisoformat(entry["window"][1])
+                last = end if last is None or end > last else last
+    return last
+
+
+def write_snapshot(source_dir, source, pulled, envelopes):
+    """Write a snapshot complete or not at all: built beside its final name, then renamed."""
+    final = source_dir / pulled
+    partial = source_dir / f".{pulled}.partial"
+    shutil.rmtree(partial, ignore_errors=True)
+    partial.mkdir(parents=True)
+    files = []
+    for name, envelope in sorted(envelopes.items()):
+        blob = json.dumps(envelope, indent=1, sort_keys=True).encode()
+        (partial / name).write_bytes(blob)
+        files.append({"file": name, "sha256": hashlib.sha256(blob).hexdigest(), "rows": envelope.get("row_count"),
+                      "shape": envelope.get("shape"), "window": envelope.get("window")})
+    (partial / MANIFEST).write_text(json.dumps({"snapshot": pulled, "source": source, "files": files}, indent=1))
+    partial.rename(final)
+    return files
+
+
+def pull_source(config, source, first, last):
+    """Pull one source into a new snapshot; returns a one-line report."""
+    root = Path(config["root"])
+    source_dir = root / source
+    today = dt.date.today()
+    if (source_dir / today.isoformat()).exists():  # A retry after the other source failed.
+        return f"{source}/{today}: already pulled today"
+    end = dt.date.fromisoformat(last) if last else today
+    if first:
+        start = dt.date.fromisoformat(first)
+    else:
+        until = covered_until(source_dir)
+        oldest = today - dt.timedelta(days=RETENTION_DAYS[source])
+        start = max(until - dt.timedelta(days=OVERLAP_DAYS[source]), oldest) if until else oldest
+    if start > end:
+        raise RuntimeError(f"{source}: nothing to pull, {start} is after {end}")
+    envelopes = (pull_cloudflare(config["cloudflare"], start, end) if source == "cloudflare"
+                 else pull_search_console(config["search_console"], start, end))
+    files = write_snapshot(source_dir, source, today.isoformat(), envelopes)
+    rows = sum(f["rows"] or 0 for f in files)
+    return f"{source}/{today}: {start} to {end}, {len(files)} file(s), {rows} row(s)"
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument("sources", nargs="*", help=f"sources to pull (default: all of {', '.join(RETENTION_DAYS)})")
+    parser.add_argument("--config", default=DEFAULT_CONFIG)
+    parser.add_argument("--first", help="first day, YYYY-MM-DD (default: where the snapshots end)")
+    parser.add_argument("--last", help="last day, YYYY-MM-DD (default: today)")
+    args = parser.parse_args()
+    unknown = set(args.sources) - set(RETENTION_DAYS)
+    if unknown:
+        parser.error(f"unknown source(s): {', '.join(sorted(unknown))}")
+
+    config = json.loads(Path(args.config).expanduser().read_text())
+    # Refuse rather than create the path: a missing root means the drive isn't mounted.
+    if not Path(config["root"]).is_dir():
+        sys.exit(f"error: snapshot root {config['root']} does not exist")
+
+    failed = False
+    for source in args.sources or RETENTION_DAYS:
+        try:
+            print(pull_source(config, source, args.first, args.last), flush=True)
+        except (RuntimeError, OSError, KeyError, ValueError, subprocess.CalledProcessError) as error:
+            print(f"error: {source}: {str(error)[:400]}", file=sys.stderr, flush=True)
+            failed = True  # The other source still runs; a failure here must not cost its data.
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

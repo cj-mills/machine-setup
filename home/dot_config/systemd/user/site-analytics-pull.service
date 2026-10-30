@@ -1,0 +1,10 @@
+[Unit]
+Description=Pull the site's Cloudflare and Search Console data into snapshots
+StartLimitIntervalSec=1d
+StartLimitBurst=12
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/site-analytics-pull
+Restart=on-failure
+RestartSec=30min

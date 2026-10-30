@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Keep every Claude Code session transcript: Claude Code prunes ~/.claude/projects after
+# about 30 days, so this copies it into an archive that only ever grows.
+#
+# Additive on purpose: no --delete, so transcripts pruned upstream stay in the archive.
+# The archive is private data and lives on a data drive, never in this repository.
+set -euo pipefail
+
+main() {
+  local source_dir="$HOME/.claude/projects"
+  local archive="${CLAUDE_TRANSCRIPT_ARCHIVE:-/mnt/projects/records/claude-transcripts}"
+
+  # Refuse rather than create the path: a missing archive means the drive isn't mounted.
+  [[ -d "$archive" ]] || { echo "error: archive $archive does not exist" >&2; exit 1; }
+  [[ -d "$source_dir" ]] || { echo "error: $source_dir does not exist" >&2; exit 1; }
+
+  rsync -a "$source_dir/" "${archive:?}/"
+
+  local archived live
+  archived="$(find "$archive" -type f -name '*.jsonl' | wc -l)"
+  live="$(find "$source_dir" -type f -name '*.jsonl' | wc -l)"
+  echo "archive $archive: $archived transcripts ($live still live in Claude Code)"
+}
+
+main "$@"; exit

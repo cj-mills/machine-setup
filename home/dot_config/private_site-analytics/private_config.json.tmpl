@@ -1,0 +1,13 @@
+{{- $cloudflare := onepasswordDocument "site-analytics-cloudflare-ids" | fromJson -}}
+{
+  "root": "/mnt/projects/records/site-analytics",
+  "cloudflare": {
+    "account": {{ $cloudflare.account | toJson }},
+    "site_tag": {{ $cloudflare.site_tag | toJson }},
+    "token_file": "~/.config/site-analytics/cloudflare.token"
+  },
+  "search_console": {
+    "property": "sc-domain:christianjmills.com",
+    "key_file": "~/.config/site-analytics/search-console-key.json"
+  }
+}

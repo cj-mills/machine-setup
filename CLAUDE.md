@@ -12,7 +12,8 @@ install runbook; `inventory/*-review.md` hold the per-item keep/drop decisions.
   flatpak, snaps. Hosts: `innom-dt` (workstation), `ms-test` (Linux test VM),
   `innom-lt` (laptop). Host data in `inventory/host_vars/`.
 - `home/`: chezmoi source (`.chezmoiroot`); hooks re-converge on `ansible/` changes and
-  run `mise install` on mise-config changes.
+  run `mise install` on mise-config changes. Workstation-only user timers
+  (`claude-transcript-archive`, `site-analytics-pull`) are gated in `.chezmoiignore`.
 - `windows/`: `autounattend.xml` + `machine-setup/` (first-logon.ps1, ensure-own-esp.ps1,
   bootstrap.ps1, configuration.winget).
 - `scripts/`: snapshot-system.sh / snapshot-windows.ps1 (read-only inventories),
@@ -84,6 +85,8 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
 - winget fails a package whose vendor URL is unversioned (e.g. Chrome's enterprise MSI)
   with `0x8A150011` (checksum mismatch) after each vendor release until winget-pkgs
   catches up: install those from the vendor and verify the Authenticode signer instead.
+- `.chezmoiignore` gates on `.chezmoi.hostname`, and an ignored template is never
+  rendered, so `onepasswordDocument` only runs on the workstation (not in `ms-test`).
 - A fresh Windows runs no PowerShell scripts (policy "Restricted"); the test harness's
   own `-ExecutionPolicy Bypass` was inherited by its payloads and hid this until the
   real install. Test the exact command the runbook gives, with nothing the harness adds.
@@ -97,21 +100,45 @@ removed apps stayed removed for 2 h including a reboot, after the orchestrator
 workflows that reinstalled them were deleted). Real Windows install on the second
 990 PRO (2026-10-27): all 64 units applied, and a test pass after a restart found the
 app removal still in place; BitLocker on (key in 1Password); Linux ESP restored.
+Standalone transcript archive and analytics timers live on the workstation (2026-10-30);
+the `cjm-*` and `medium` timers are off, and `medium` is removed.
 
 Next:
-1. Windows leftovers (user, manual): Start menu pins; VLC as the audio default; the
-   other ArtCraft apps if wanted. VM harness: after a reboot post-apply, autologon no
-   longer happened (no interactive logon attempted), so `desktop-run` timed out
-   waiting for the desktop; SSH checks still work.
+1. Reorganize the data drives and retire the cjm-substrate era before the clean install.
+   Layout: `/mnt/projects/` = `cj-mills/`, `upstream/`, `clients/`, `blender/`, `notes/`,
+   `scratch/`, `records/`, `archive/cjm-era/`; `/mnt/data/` = `datasets/`, `models/`,
+   `media/`, `vm/`. Decisions:
+   - Era repos stay usable: their Qt tools (`cjm-substrate/.cjm/bin/scratchpad`,
+     `cjm-graph-workbench-qt`) need env `cjm-transcript-correction-core`, whose editable
+     installs and scripts hard-code `/mnt/SN850X_8TB_EXT4/Projects/GitHub/cj-mills`. Keep
+     that path and `.../claude-code-scratchpads` as compatibility symlinks into the
+     archive (`~/cjm-dev-graph-private` and `~/.cjm` likewise), and copy `~/miniforge3`
+     to `/mnt/data` before the wipe. Test the apps on 26.04 in `ms-test`.
+   - Everything in that folder moves to `archive/cjm-era` except `christianjmills`,
+     whatever its GitHub visibility; `nalvo` and `cjm-archive` go to `archive/` too.
+   - GitHub: 41 of its `cjm-*` repos go private, then archived. Not `cjm-demucs-v4`,
+     `cjm-design-system`, tutorial packages, or the 59 cjm repos outside that folder.
+   - Merge `BX500_2TB_2/Backups` (95 GB) into Backups before wiping that drive; drop its
+     `SteamLibrary` and `Simtraxx`. It then becomes `/mnt/backup` (ext4), the interim
+     copy of what can't be re-obtained, `Media_Library/Images` included. BX500 #1 already
+     matches `/mnt/archive` (129 GB `archive/invigo`).
+   - `/mnt/Storage` and the old Windows partition are on the Linux drive: evacuate
+     `/mnt/Storage` and replace the `~/Documents`-style symlinks. The 100 GB ext4
+     partition is the disposable `testbed`; nothing on it is kept.
+   - Windows: Dev Drive VHDX now rather than later (VM first); test `wsl --mount` on the
+     real machine to choose between mounting and copying data. Windows leftovers (user):
+     Start pins, VLC audio default. VM harness: after a reboot post-apply, autologon no
+     longer happened, so `desktop-run` timed out; SSH checks still work.
 2. Linux dotfiles into `home/`: `.bashrc` (history, conda init), git with 1Password SSH
    signing, `~/.local/bin` scripts (read each before committing: public repo), VS Code
    extensions, curated GNOME settings incl. event sounds off, Miniforge, Proton Drive
    Linux client if one exists.
 3. Ubuntu 26.04 autoinstall config (LVM: 2 GB ESP, root ~2.5 TB, 64 GB swap, ~1 TB free),
-   then the Ubuntu clean install (back up `~/.claude`, `~/.cjm` and other state first).
+   then the Ubuntu clean install (back up `~/.claude`, `~/.cjm` and other state first; chezmoi
+   renders the three `site-analytics-*` 1Password documents, added and verified
+   2026-10-30).
 
 Later: Visual Studio + workloads (when a C++/Unreal project needs it; confirm
 `Microsoft.VisualStudio.DSC/VSComponents` IDs in the VM), Dev Drive (growable VHDX,
 re-attached at boot), Blender 5.2.3 bump (both platforms), convert the 860 EVO (`games`)
-and BX500s (`backup`, `archive`), Jetson and Pi roles. Open: whether the
-`cjm-evidence-pull.timer` user unit belongs here or in cjm-substrate.
+and BX500s (`backup`, `archive`), Jetson and Pi roles.

@@ -1,0 +1,9 @@
+[Unit]
+Description=Pull the site's analytics twice a week (Cloudflare holds full resolution for under 7 days)
+
+[Timer]
+OnCalendar=Mon,Thu *-*-* 09:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
