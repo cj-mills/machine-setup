@@ -1,0 +1,8 @@
+{{ if ne .chezmoi.hostname "innom-dt" }}
+# Workstation only: these write to its data drives and need its credentials.
+.config/site-analytics
+.config/systemd/user/claude-transcript-archive.*
+.config/systemd/user/site-analytics-pull.*
+.local/bin/claude-transcript-archive
+.local/bin/site-analytics-pull
+{{ end }}

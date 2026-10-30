@@ -1,0 +1,10 @@
+[Unit]
+Description=Archive the Claude Code session transcripts before Claude Code prunes them
+StartLimitIntervalSec=1d
+StartLimitBurst=12
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/claude-transcript-archive
+Restart=on-failure
+RestartSec=30min

@@ -12,7 +12,8 @@ install runbook; `inventory/*-review.md` hold the per-item keep/drop decisions.
   flatpak, snaps. Hosts: `innom-dt` (workstation), `ms-test` (Linux test VM),
   `innom-lt` (laptop). Host data in `inventory/host_vars/`.
 - `home/`: chezmoi source (`.chezmoiroot`); hooks re-converge on `ansible/` changes and
-  run `mise install` on mise-config changes.
+  run `mise install` on mise-config changes. Workstation-only user timers
+  (`claude-transcript-archive`, `site-analytics-pull`) are gated in `.chezmoiignore`.
 - `windows/`: `autounattend.xml` + `machine-setup/` (first-logon.ps1, ensure-own-esp.ps1,
   bootstrap.ps1, configuration.winget).
 - `scripts/`: snapshot-system.sh / snapshot-windows.ps1 (read-only inventories),
@@ -84,6 +85,8 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
 - winget fails a package whose vendor URL is unversioned (e.g. Chrome's enterprise MSI)
   with `0x8A150011` (checksum mismatch) after each vendor release until winget-pkgs
   catches up: install those from the vendor and verify the Authenticode signer instead.
+- `.chezmoiignore` gates on `.chezmoi.hostname`, and an ignored template is never
+  rendered, so `onepasswordDocument` only runs on the workstation (not in `ms-test`).
 - A fresh Windows runs no PowerShell scripts (policy "Restricted"); the test harness's
   own `-ExecutionPolicy Bypass` was inherited by its payloads and hid this until the
   real install. Test the exact command the runbook gives, with nothing the harness adds.

@@ -1,0 +1,8 @@
+{{ if eq .chezmoi.hostname "innom-dt" -}}
+#!/usr/bin/env bash
+# Enable the workstation's user timers whenever their units change.
+# units hash: {{ include "dot_config/systemd/user/claude-transcript-archive.service" | sha256sum }} {{ include "dot_config/systemd/user/claude-transcript-archive.timer" | sha256sum }} {{ include "dot_config/systemd/user/site-analytics-pull.service" | sha256sum }} {{ include "dot_config/systemd/user/site-analytics-pull.timer" | sha256sum }}
+set -euo pipefail
+systemctl --user daemon-reload
+systemctl --user enable --now claude-transcript-archive.timer site-analytics-pull.timer
+{{ end -}}
