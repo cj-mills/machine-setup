@@ -92,6 +92,17 @@ outside this repository.
 Data-drive filesystems use no root reservation (`-m 0`) and GPT type "Linux
 filesystem". Mounts are managed by the `mounts` role from `host_vars`.
 
+## Content layout (workstation)
+
+Content is sorted by how it behaves, which also decides what gets backed up.
+
+The layout itself is kept with the owner's private workspace notes.
+
+The Qt tools from the cjm-substrate era keep working from `archive/cjm-era` through
+compatibility links at their old paths, because their conda environment's editable
+installs and scripts hard-code `/mnt/SN850X_8TB_EXT4/Projects/GitHub/cj-mills`. Editing
+those would be rework on retired code; the links go when the era's tools do.
+
 ## Decisions
 
 | Date | Decision |
