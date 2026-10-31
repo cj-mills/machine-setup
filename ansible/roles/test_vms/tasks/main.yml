@@ -1,0 +1,32 @@
+- name: Install the test VM tools
+  ansible.builtin.apt:
+    name: [qemu-system-x86, qemu-utils, ovmf, swtpm, swtpm-tools]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Let the primary user use KVM
+  ansible.builtin.user:
+    name: "{{ primary_user }}"
+    groups: kvm
+    append: true
+
+- name: Create the test VM directory
+  ansible.builtin.file:
+    path: "{{ test_vms_root }}"
+    state: directory
+    owner: "{{ primary_user }}"
+    group: "{{ primary_user }}"
+    mode: "0755"
+
+# The swtpm AppArmor profile only allows the home directory and a few system paths, and
+# a Windows VM's TPM state lives beside its disks. local/ is the profile's own extension point.
+- name: Let swtpm use the test VM directory
+  ansible.builtin.lineinfile:
+    path: /etc/apparmor.d/local/usr.bin.swtpm
+    line: "owner {{ test_vms_root }}/** rwk,"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload the swtpm AppArmor profile

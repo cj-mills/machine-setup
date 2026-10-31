@@ -19,6 +19,9 @@ mounts_aliases:
   - path: /mnt/SN850X_8TB_EXT4  # old projects path, still used by tools and session history
     target: /mnt/projects
 
+# Test VMs (scripts/test-vm.sh) live on the data drive.
+test_vms_root: /mnt/data/vm
+
 mounts_retired:
   - /mnt/SN850X_8TB       # reformatted as /mnt/data
   - /mnt/SN850X_8TB_2     # stale entry from before that drive became ext4

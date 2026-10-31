@@ -9,7 +9,7 @@ install runbook; `inventory/*-review.md` hold the per-item keep/drop decisions.
 
 - `bootstrap.sh`, `scripts/converge-system.sh`: Linux entry points (Ansible system layer).
 - `ansible/`: roles base, mounts, vendor_repos, release_debs, blender, docker, nvidia,
-  flatpak, snaps. Hosts: `innom-dt` (workstation), `ms-test` (Linux test VM),
+  flatpak, snaps, test_vms. Hosts: `innom-dt` (workstation), `ms-test` (Linux test VM),
   `innom-lt` (laptop). Host data in `inventory/host_vars/`.
 - `home/`: chezmoi source (`.chezmoiroot`); hooks re-converge on `ansible/` changes and
   run `mise install` on mise-config changes. Workstation-only user timers
@@ -35,7 +35,7 @@ in `ansible/`: `ansible-playbook site.yml --syntax-check` and
 Run Ansible commands with `</dev/null 2>&1 | cat` (it rejects non-blocking stdio).
 
 Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
-`~/.local/share/machine-setup/vm/<name>`):
+`/mnt/data/vm/<name>` on the workstation, else `~/.local/share/machine-setup/vm/<name>`):
 
 - `VM_NAME=ms-test` (Ubuntu 26.04): snapshots `fresh-install`, `fresh-ssh` (SSH key +
   passwordless sudo). Cycle: `restore fresh-ssh`, `start`, `wait-ssh`, then bootstrap from
@@ -44,7 +44,7 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
 - `VM_NAME=ms-win` (Windows 11 Pro): snapshot `fresh-install` (post-install, pre-config).
   A decoy disk with a Linux-style ESP is attached first (`decoy.raw`; hide/show it with
   `scripts/esp-visibility.sh`; `VM_DECOY=0` boots without it). Installer image:
-  `/mnt/data/win11-installer-usb.qcow2`. Copy changed files in with `scp` (key and
+  `/mnt/data/vm/isos/win11-installer-usb.qcow2`. Copy changed files in with `scp` (key and
   known_hosts in the VM dir, port 2223, user `innom-dt`), then
   `scripts/test-vm.sh desktop-run 'powershell -NoProfile -ExecutionPolicy Bypass -File C:\machine-setup\bootstrap.ps1 -AcceptAgreements'`
   (the runbook's command; desktop-run runs it as if typed at a fresh prompt).
@@ -87,6 +87,9 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
   catches up: install those from the vendor and verify the Authenticode signer instead.
 - `.chezmoiignore` gates on `.chezmoi.hostname`, and an ignored template is never
   rendered, so `onepasswordDocument` only runs on the workstation (not in `ms-test`).
+- Ubuntu's AppArmor profile for swtpm only allows the home directory and a few system
+  paths, so Windows VMs outside it fail silently at `swtpm` (see `journalctl -k`): the
+  `test_vms` role adds the VM directory to `local/usr.bin.swtpm`.
 - A fresh Windows runs no PowerShell scripts (policy "Restricted"); the test harness's
   own `-ExecutionPolicy Bypass` was inherited by its payloads and hid this until the
   real install. Test the exact command the runbook gives, with nothing the harness adds.
@@ -111,10 +114,11 @@ Next:
    Copied and checksummed, originals untouched: `BX500_2TB_2/Backups` (now in
    `records/backups`), `/mnt/Storage` (`archive/storage-partition`), `~/miniforge3`
    (`/mnt/data/transfer`). Left:
-   - Cross-drive copies to `/mnt/data`, verified before the user deletes originals:
-     `Media_Library` (2.6 TB), `Datasets`, `Model_Cache` (then repoint
-     `~/.cache/huggingface`), `ISOs`, the 65 GB VMs in `~/.local/share/machine-setup`,
-     and the 27 GB of course videos in `notes/`. `Utility_CLI_Scripts` waits for step 2.
+   - Cross-drive copies to `/mnt/data` are done and checksummed (2026-10-30): media,
+     datasets, models, VMs, ISOs, course videos. `~/.cache/huggingface` is repointed; the
+     VMs run from `/mnt/data/vm`. The user deletes the originals once `ms-win` boots
+     there, then `/mnt/projects/Model_Cache` becomes a link to `/mnt/data/models` (era
+     `cjm.yaml` files and scripts hard-code it). `Utility_CLI_Scripts` waits for step 2.
    - Last, in one go: move `Projects/Utility_Projects/*` into `cj-mills/` with
      `machine-setup`, and rename their `~/.claude/projects` folders (`christianjmills`
      too). `protonmail-archive`'s conda env points at its current path.

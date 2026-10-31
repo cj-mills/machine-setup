@@ -44,7 +44,10 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 name="${VM_NAME:-ms-test}"
-dir="${VM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/machine-setup/vm}/$name"
+# The workstation keeps VMs on its data drive; other machines in the user's data directory.
+vm_root="${XDG_DATA_HOME:-$HOME/.local/share}/machine-setup/vm"
+[[ -d /mnt/data/vm ]] && vm_root=/mnt/data/vm
+dir="${VM_DIR:-$vm_root}/$name"
 os="$(cat "$dir/os" 2>/dev/null || echo "${VM_OS:-linux}")"
 case "$os" in
   linux)   default_user=tester;   default_port=2222 ;;
