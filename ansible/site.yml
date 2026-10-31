@@ -18,6 +18,7 @@
     - {role: vendor_repos, tags: vendor_repos}
     - {role: release_debs, tags: release_debs}
     - {role: blender, tags: blender}
+    - {role: miniforge, tags: miniforge}
     - {role: docker, tags: docker}
     - {role: nvidia, tags: nvidia}
     - {role: flatpak, tags: flatpak}

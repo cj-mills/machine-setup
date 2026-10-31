@@ -1,0 +1,250 @@
+#!/usr/bin/env python3
+"""
+Generate Markdown documentation for nbdev projects.
+
+This script takes directory paths to nbdev projects and generates a structured
+Markdown document with project descriptions, conda environments, dependencies,
+and directory structures.
+
+Updated for nbdev v3, which uses pyproject.toml instead of settings.ini.
+"""
+import argparse
+import subprocess
+import sys
+from pathlib import Path
+from typing import List, Dict, Any
+
+try:
+    import tomllib  # Python 3.11+
+except ModuleNotFoundError:
+    import tomli as tomllib  # Fallback for Python 3.10 (install with: pip install tomli)
+
+
+def read_pyproject_toml(project_path: Path) -> Dict[str, Any]:
+    """
+    Read pyproject.toml file from an nbdev project.
+
+    Args:
+        project_path: Path to the nbdev project directory
+
+    Returns:
+        Dictionary containing the parsed TOML configuration
+    """
+    pyproject_file = project_path / "pyproject.toml"
+
+    if not pyproject_file.exists():
+        print(f"Warning: pyproject.toml not found in {project_path}", file=sys.stderr)
+        return {}
+
+    try:
+        with open(pyproject_file, 'rb') as f:
+            return tomllib.load(f)
+    except tomllib.TOMLDecodeError as e:
+        print(f"Warning: Failed to parse pyproject.toml in {project_path}: {e}", file=sys.stderr)
+        return {}
+
+
+def get_project_structure(project_path: Path) -> str:
+    """
+    Generate directory structure using tree command.
+
+    Args:
+        project_path: Path to the nbdev project directory
+
+    Returns:
+        String containing the tree output
+    """
+    try:
+        # Run tree command with specified options
+        result = subprocess.run(
+            [
+                'tree',
+                '--gitignore',
+                '-P', '*.ipynb|*.py',
+                '-I', '__pycache__|__init__.py|setup.py|_modidx.py',
+                '--prune',
+                str(project_path)
+            ],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        print(f"Warning: Failed to run tree command for {project_path}: {e}", file=sys.stderr)
+        return f"Error generating structure for {project_path}"
+    except FileNotFoundError:
+        print("Error: 'tree' command not found. Please install it first.", file=sys.stderr)
+        sys.exit(1)
+
+
+def _strip_requirement_to_name(req: str) -> str:
+    """
+    Strip a PEP 508 requirement string down to just the package name.
+
+    Handles environment markers, extras, and version specifiers. For example:
+        "package[extra]>=1.0 ; python_version >= '3.10'"  ->  "package"
+    """
+    req = req.strip()
+
+    # Strip environment markers (e.g., "package; python_version >= '3.10'")
+    if ';' in req:
+        req = req.split(';', 1)[0].strip()
+
+    # Strip extras (e.g., "package[extra1,extra2]")
+    if '[' in req:
+        req = req.split('[', 1)[0].strip()
+
+    # Strip version specifiers. Order matters: check two-char operators before
+    # their one-char prefixes so we don't split "package>=1.0" on ">".
+    for spec in ('>=', '<=', '==', '!=', '~=', '>', '<'):
+        if spec in req:
+            req = req.split(spec, 1)[0]
+
+    # Strip any URL-based specifier (e.g., "package @ https://...")
+    if '@' in req:
+        req = req.split('@', 1)[0]
+
+    return req.strip()
+
+
+def extract_dependencies(dependencies: List[str], project_paths: List[Path]) -> List[str]:
+    """
+    Extract dependencies that are other nbdev projects from the dependencies list.
+
+    Args:
+        dependencies: List of dependency strings from pyproject.toml's
+                      [project].dependencies array
+        project_paths: List of all project paths to check against
+
+    Returns:
+        List of project names that are dependencies
+    """
+    if not dependencies:
+        return []
+
+    # Get project names from paths
+    project_names = {path.name for path in project_paths}
+
+    deps = []
+    for req in dependencies:
+        req_name = _strip_requirement_to_name(req)
+        if not req_name:
+            continue
+
+        # Check if this requirement matches any project name
+        # Also handle underscore/hyphen variations
+        req_normalized = req_name.replace('_', '-')
+        for proj_name in project_names:
+            proj_normalized = proj_name.replace('_', '-')
+            if req_normalized == proj_normalized:
+                deps.append(req_name)
+                break
+
+    return deps
+
+
+def generate_markdown(project_paths: List[Path]) -> str:
+    """
+    Generate the complete Markdown document for all projects.
+
+    Args:
+        project_paths: List of paths to nbdev projects
+
+    Returns:
+        Generated Markdown string
+    """
+    markdown_lines = []
+
+    for project_path in project_paths:
+        # Ensure path is absolute
+        project_path = project_path.resolve()
+
+        # Read pyproject.toml and pull out the [project] table
+        config = read_pyproject_toml(project_path)
+        project_info = config.get('project', {})
+
+        # Get basic info
+        description = project_info.get('description', 'No description available')
+        conda_env = project_path.name
+        dependencies_list = project_info.get('dependencies', [])
+
+        # Extract dependencies on other projects
+        dependencies = extract_dependencies(dependencies_list, project_paths)
+
+        # Get directory structure
+        structure = get_project_structure(project_path)
+
+        # Build markdown entry
+        markdown_lines.append(f"- `{project_path}`")
+        markdown_lines.append(f"  - description: {description}")
+        markdown_lines.append(f"  - conda env: `{conda_env}`")
+
+        if dependencies:
+            deps_str = ', '.join(f"`{dep}`" for dep in dependencies)
+            markdown_lines.append(f"  - depends on: {deps_str}")
+
+        markdown_lines.append("  - structure:")
+        markdown_lines.append("    ```")
+        # Indent the tree output
+        for line in structure.split('\n'):
+            markdown_lines.append(f"    {line}")
+        markdown_lines.append("    ```")
+
+    return '\n'.join(markdown_lines)
+
+
+def main():
+    """Main entry point for the script."""
+    parser = argparse.ArgumentParser(
+        description='Generate Markdown documentation for nbdev projects',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Example usage:
+  python generate_nbdev_docs.py /path/to/project1 /path/to/project2 -o output.md
+  python generate_nbdev_docs.py /path/to/project1 /path/to/project2
+        """
+    )
+
+    parser.add_argument(
+        'projects',
+        nargs='+',
+        type=Path,
+        help='Paths to nbdev project directories'
+    )
+
+    parser.add_argument(
+        '-o', '--output',
+        type=Path,
+        help='Output file path (if not specified, prints to stdout)'
+    )
+
+    args = parser.parse_args()
+
+    # Validate project paths
+    invalid_paths = []
+    for project_path in args.projects:
+        if not project_path.exists():
+            invalid_paths.append(project_path)
+        elif not project_path.is_dir():
+            invalid_paths.append(project_path)
+
+    if invalid_paths:
+        print("Error: The following paths are invalid:", file=sys.stderr)
+        for path in invalid_paths:
+            print(f"  - {path}", file=sys.stderr)
+        sys.exit(1)
+
+    # Generate markdown
+    markdown_content = generate_markdown(args.projects)
+
+    # Output
+    if args.output:
+        args.output.write_text(markdown_content)
+        print(f"Documentation generated successfully: {args.output}")
+    else:
+        print(markdown_content)
+
+
+if __name__ == '__main__':
+    main()

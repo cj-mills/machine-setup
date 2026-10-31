@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""
+CLI script to extract conversation content from AI Studio JSON export to Markdown.
+"""
+
+import argparse
+import json
+from pathlib import Path
+
+
+def extract_to_markdown(json_data: dict, include_thoughts: bool = False) -> str:
+    """Extract conversation chunks to Markdown format."""
+    lines = []
+
+    # Add metadata header if run settings exist
+    if "runSettings" in json_data:
+        settings = json_data["runSettings"]
+        lines.append("---")
+        lines.append(f"model: {settings.get('model', 'unknown')}")
+        lines.append(f"temperature: {settings.get('temperature', 'N/A')}")
+        lines.append("---")
+        lines.append("")
+
+    # Process conversation chunks
+    chunks = json_data.get("chunkedPrompt", {}).get("chunks", [])
+
+    for chunk in chunks:
+        role = chunk.get("role", "unknown")
+        text = chunk.get("text", "")
+        is_thought = chunk.get("isThought", False)
+
+        # Skip thought content unless explicitly requested
+        if is_thought and not include_thoughts:
+            continue
+
+        # Skip empty text
+        if not text.strip():
+            continue
+
+        # Format based on role
+        if role == "user":
+            lines.append("## User")
+            lines.append("")
+            lines.append(text.strip())
+            lines.append("")
+        elif role == "model":
+            if is_thought:
+                lines.append("## Model (Thinking)")
+                lines.append("")
+                lines.append("<details>")
+                lines.append("<summary>Internal reasoning</summary>")
+                lines.append("")
+                lines.append(text.strip())
+                lines.append("")
+                lines.append("</details>")
+                lines.append("")
+            else:
+                lines.append("## Assistant")
+                lines.append("")
+                lines.append(text.strip())
+                lines.append("")
+
+    return "\n".join(lines)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Extract conversation content from AI Studio JSON to Markdown"
+    )
+    parser.add_argument(
+        "input_file",
+        type=Path,
+        help="Path to the input JSON file"
+    )
+    parser.add_argument(
+        "-o", "--output",
+        type=Path,
+        default=None,
+        help="Output Markdown file path (defaults to input filename with .md extension)"
+    )
+    parser.add_argument(
+        "--include-thoughts",
+        action="store_true",
+        help="Include model thinking/reasoning content in output"
+    )
+
+    args = parser.parse_args()
+
+    # Validate input file
+    if not args.input_file.exists():
+        print(f"Error: Input file not found: {args.input_file}")
+        return 1
+
+    # Set default output path
+    output_path = args.output or args.input_file.with_suffix(".md")
+
+    # Read and parse JSON
+    try:
+        with open(args.input_file, "r", encoding="utf-8") as f:
+            json_data = json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON file: {e}")
+        return 1
+
+    # Extract to Markdown
+    markdown_content = extract_to_markdown(json_data, args.include_thoughts)
+
+    # Write output
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(markdown_content)
+
+    print(f"Extracted conversation to: {output_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    exit(main())

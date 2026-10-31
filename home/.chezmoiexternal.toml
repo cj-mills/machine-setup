@@ -1,0 +1,7 @@
+# Pinned: bump the version_tag and checksum together.
+[".local/share/gnome-shell/extensions/gTile@vibou"]
+    type = "archive"
+    url = "https://extensions.gnome.org/download-extension/gTile@vibou.shell-extension.zip?version_tag=76175"
+    format = "zip"
+    exact = true
+    checksum.sha256 = "379b8fa46841c03d0775de85ddd3479de307ffb2a9ced9f7b627e1a8d9c5e0f6"
