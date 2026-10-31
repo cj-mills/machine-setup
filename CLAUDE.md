@@ -133,12 +133,11 @@ Next:
      restoring only env `cjm-transcript-correction-core`.
    - GitHub: 41 `cjm-*` repos go private, then archived. Not `cjm-demucs-v4`,
      `cjm-design-system`, tutorial packages, or the 59 cjm repos outside that folder.
-   - `/mnt/backup`: `scripts/prepare-data-disk.sh`, the `mounts` entry and the weekly
-     `backup-snapshot` timer are written and verified in `ms-test`. The user formats
-     BX500 #2 (…A5C8) with UUID from `host_vars`, then converge `--tags mounts`, install
-     the timer with a targeted `chezmoi apply`, and take the first snapshot. Remove
-     `Utility_Projects` from its `SOURCES` when those projects move. BX500 #1 already
-     matches `/mnt/archive` (129 GB `archive/invigo`).
+   - `/mnt/backup` is live (BX500 #2, 2026-10-30): the weekly `backup-snapshot` timer is
+     on, and the first snapshot (543 GB) matches its sources by checksum. Remove
+     `Utility_Projects` from its `SOURCES` when those projects move. It stays in the
+     machine and isn't encrypted; off-site backup (NAS or cloud) is the known gap. BX500
+     #1 already matches `/mnt/archive` (129 GB `archive/invigo`).
    - The old Windows partition and `/mnt/Storage` go with the Linux drive; the 100 GB ext4
      partition is the disposable `testbed`; nothing on it is kept.
    - Windows: Dev Drive VHDX now rather than later (VM first); test `wsl --mount` on the
