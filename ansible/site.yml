@@ -22,3 +22,4 @@
     - {role: nvidia, tags: nvidia}
     - {role: flatpak, tags: flatpak}
     - {role: snaps, tags: snaps}
+    - {role: test_vms, tags: test_vms, when: test_vms_root is defined}
