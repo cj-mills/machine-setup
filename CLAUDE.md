@@ -149,10 +149,12 @@ Next:
      #1 already matches `/mnt/archive` (129 GB `archive/invigo`).
    - The old Windows partition and `/mnt/Storage` go with the Linux drive; the 100 GB ext4
      partition is the disposable `testbed`; nothing on it is kept.
-   - Windows: Dev Drive at `P:` is in the configuration, verified in the VM (66 units;
-     survives reboots); apply it on the real machine with `bootstrap.ps1`. Test
-     `wsl --mount` worked on the real machine read-only (`/mnt/data`, disk 4 that boot);
-     Windows mounts rather than copies. Leftovers (user): Start pins, VLC audio default.
+   - Windows: Dev Drive at `P:` is live on the real machine and trusted (2026-10-31). Known
+     and accepted: Explorer opens `P:` at restart. Windows treats the attached VHDX as
+     removable (Explorer shows Eject), so AutoPlay's "Removable drive" choice is the likely
+     cause; not reproduced in the VM. `wsl --mount` worked read-only on the real machine
+     (`/mnt/data`, disk 4 that boot); Windows mounts rather than copies. Leftovers (user):
+     Start pins, VLC audio default.
 2. Linux dotfiles into `home/`: `.bashrc` (history, conda init), git with 1Password SSH
    signing, `~/.local/bin` scripts (read each before committing: public repo), VS Code
    extensions, curated GNOME settings incl. event sounds off, Miniforge, Proton Drive
