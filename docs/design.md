@@ -90,7 +90,8 @@ The workstation's drive inventory is kept with the owner's private workspace not
 outside this repository.
 
 Data-drive filesystems use no root reservation (`-m 0`) and GPT type "Linux
-filesystem". Mounts are managed by the `mounts` role from `host_vars`.
+filesystem" (`scripts/prepare-data-disk.sh`). Mounts are managed by the `mounts` role
+from `host_vars`.
 
 ## Content layout (workstation)
 
@@ -133,6 +134,7 @@ those would be rework on retired code; the links go when the era's tools do.
 | 2026-10-27 | Removed apps are kept removed by deleting the Windows Update orchestrator's "expedited apps" workflows for them (`UScheduler_Oobe`: CrossDeviceUpdate, DevHomeUpdate, OutlookUpdate, TFLUpdate = consumer Teams); EdgeUpdate, IA (Store business-critical updates) and LXP (language packs) stay. Deprovisioning alone didn't hold: in the VM, `usoclient CrossDeviceUpdate` reinstalled CrossDevice from the Store within 11 minutes of removal and again after a reboot (Store log `Acquisition;CrossDevice_UO-UsoClient`), and Dev Home likewise. With the workflows deleted, nothing came back over 2 hours including a reboot. Rejected: turning off Store automatic updates (`AutoDownload=2`), which would also stop updates to the apps that are kept. |
 | 2026-10-27 | Chrome on Windows installs from Google's enterprise MSI, accepted only with a valid Google LLC Authenticode signature, instead of winget: Google replaces the file at its unversioned URL with every release, so winget's pinned checksum fails (`0x8A150011`) until the manifest catches up. That failed the real install's first bootstrap (Google published 156.0.8078.73 at 20:32 UTC; the manifest still had .48). Chrome updates itself afterwards, as on Linux (Google's apt repo). Of the other winget packages, only Steam's installer URL is unversioned, and that installer rarely changes; left on winget. |
 | 2026-10-30 | The transcript archive and the site analytics pull are standalone user timers in `home/` (`claude-transcript-archive`, `site-analytics-pull`), on the workstation only, because the cjm-substrate project is being archived and both must outlive it. Their data is collected and can't be re-obtained, so it sits in `/mnt/projects/records/`, outside any project, for future projects to read: Claude Code prunes transcripts after about 30 days, and Cloudflare keeps about 26 weeks. The pull is standard library plus the `openssl` CLI so an unattended timer depends on no environment, and it keeps the old snapshot format, so history continues unbroken. Its credentials and the Cloudflare account ID and site tag are 1Password documents rendered by chezmoi, so none of them are in this public repository. Rejected: keeping them in `cjm-substrate`, and a conda or uv environment for one RSA signature. |
+| 2026-10-30 | Interim backup: `backup-snapshot`, a weekly user timer writing dated `rsync --link-dest` snapshots to `/mnt/backup`, keeping the last 8. History is why it isn't a mirror, which would copy an accidental deletion over the backup at the next run. Snapshots are plain folders, so restoring needs no tool, and unchanged files take no extra space. It covers what the content layout marks as backed up. Rejected for now: restic or borg, which add a restore tool and a repository format for a stopgap. |
 
 ## Repository layout
 

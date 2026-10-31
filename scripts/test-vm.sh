@@ -16,7 +16,8 @@
 #   scripts/test-vm.sh snapshot NAME      save a snapshot (VM must be off)
 #   scripts/test-vm.sh restore NAME       roll back to a snapshot (VM must be off)
 #   scripts/test-vm.sh list               list snapshots
-#   scripts/test-vm.sh data-disk SIZE     Linux: add a blank second disk (/dev/vdb in the guest)
+#   scripts/test-vm.sh data-disk SIZE     Linux: add a blank second disk
+#                                         (guest: /dev/disk/by-id/virtio-ms-test-data)
 #   scripts/test-vm.sh destroy            delete the VM
 #
 # Each VM records its OS at creation (VM_OS=linux, the default, or windows):
@@ -162,7 +163,7 @@ boot_linux() {
     -virtfs local,path="$repo_root",mount_tag=machine-setup,security_model=none,readonly=on \
     -virtfs local,path="$dir/share",mount_tag=vm-meta,security_model=none,readonly=on \
     -pidfile "$pidfile" \
-    $([[ -f "$data_disk" ]] && echo "-drive file=$data_disk,if=virtio,format=qcow2,discard=unmap") \
+    $([[ -f "$data_disk" ]] && echo "-drive file=$data_disk,if=none,id=data,format=qcow2,discard=unmap -device virtio-blk-pci,drive=data,serial=ms-test-data") \
     "$@"
 }
 
@@ -388,7 +389,7 @@ EOF
       require_vm; require_stopped
       rm -f "$data_disk"
       qemu-img create -q -f qcow2 "$data_disk" "$size"
-      echo "Attached blank $size data disk (guest: /dev/vdb); replaces any previous one"
+      echo "Attached blank $size data disk (guest: /dev/disk/by-id/virtio-ms-test-data); replaces any previous one"
       ;;
     destroy)
       require_vm; require_stopped

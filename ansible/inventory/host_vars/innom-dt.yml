@@ -12,6 +12,11 @@ mounts_list:
     uuid: DATA_FS_UUID
     fstype: ext4
     name: Data
+  - path: /mnt/backup
+    uuid: BACKUP_FS_UUID  # set by prepare-data-disk.sh
+    fstype: ext4
+    name: Backup
+    mode: "0700"
 
 mounts_aliases:
   - path: /mnt/SN850X_8TB_EXT4  # old projects path, still used by tools and session history

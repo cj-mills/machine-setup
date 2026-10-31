@@ -13,11 +13,13 @@ install runbook; `inventory/*-review.md` hold the per-item keep/drop decisions.
   `innom-lt` (laptop). Host data in `inventory/host_vars/`.
 - `home/`: chezmoi source (`.chezmoiroot`); hooks re-converge on `ansible/` changes and
   run `mise install` on mise-config changes. Workstation-only user timers
-  (`claude-transcript-archive`, `site-analytics-pull`) are gated in `.chezmoiignore`.
+  (`claude-transcript-archive`, `site-analytics-pull`, `backup-snapshot`) are gated in
+  `.chezmoiignore`.
 - `windows/`: `autounattend.xml` + `machine-setup/` (first-logon.ps1, ensure-own-esp.ps1,
   bootstrap.ps1, configuration.winget).
 - `scripts/`: snapshot-system.sh / snapshot-windows.ps1 (read-only inventories),
-  test-vm.sh, prepare-windows-disk.sh, esp-visibility.sh, blender-pin.sh.
+  test-vm.sh, prepare-windows-disk.sh, prepare-data-disk.sh, esp-visibility.sh,
+  blender-pin.sh.
 
 ## Working rules for this repo
 
