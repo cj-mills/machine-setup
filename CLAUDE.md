@@ -13,11 +13,13 @@ install runbook; `inventory/*-review.md` hold the per-item keep/drop decisions.
   `innom-lt` (laptop). Host data in `inventory/host_vars/`.
 - `home/`: chezmoi source (`.chezmoiroot`); hooks re-converge on `ansible/` changes and
   run `mise install` on mise-config changes. Workstation-only user timers
-  (`claude-transcript-archive`, `site-analytics-pull`) are gated in `.chezmoiignore`.
+  (`claude-transcript-archive`, `site-analytics-pull`, `backup-snapshot`) are gated in
+  `.chezmoiignore`.
 - `windows/`: `autounattend.xml` + `machine-setup/` (first-logon.ps1, ensure-own-esp.ps1,
   bootstrap.ps1, configuration.winget).
 - `scripts/`: snapshot-system.sh / snapshot-windows.ps1 (read-only inventories),
-  test-vm.sh, prepare-windows-disk.sh, esp-visibility.sh, blender-pin.sh.
+  test-vm.sh, prepare-windows-disk.sh, prepare-data-disk.sh, esp-visibility.sh,
+  blender-pin.sh.
 
 ## Working rules for this repo
 
@@ -129,9 +131,12 @@ Next:
      restoring only env `cjm-transcript-correction-core`.
    - GitHub: 41 `cjm-*` repos go private, then archived. Not `cjm-demucs-v4`,
      `cjm-design-system`, tutorial packages, or the 59 cjm repos outside that folder.
-   - `BX500_2TB_2` is safe to wipe (user runs it): it becomes `/mnt/backup` (ext4), the
-     interim copy of what the layout marks as backed up. BX500 #1 already matches
-     `/mnt/archive` (129 GB `archive/invigo`).
+   - `/mnt/backup`: `scripts/prepare-data-disk.sh`, the `mounts` entry and the weekly
+     `backup-snapshot` timer are written and verified in `ms-test`. The user formats
+     BX500 #2 (…A5C8) with UUID from `host_vars`, then converge `--tags mounts`, install
+     the timer with a targeted `chezmoi apply`, and take the first snapshot. Remove
+     `Utility_Projects` from its `SOURCES` when those projects move. BX500 #1 already
+     matches `/mnt/archive` (129 GB `archive/invigo`).
    - The old Windows partition and `/mnt/Storage` go with the Linux drive; the 100 GB ext4
      partition is the disposable `testbed`; nothing on it is kept.
    - Windows: Dev Drive VHDX now rather than later (VM first); test `wsl --mount` on the

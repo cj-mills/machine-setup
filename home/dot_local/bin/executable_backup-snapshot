@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Snapshot what can't be re-obtained onto the backup drive, keeping recent history.
+#
+# Each run writes snapshots/YYYY-MM-DD/, a plain browsable copy; unchanged files are hard
+# links to the previous snapshot, so they take no extra space. History is the point: a
+# plain mirror would copy an accidental deletion over the only backup at the next run.
+#
+# Interim protection against a failed drive or a mistake. It sits in the same machine,
+# so it doesn't protect against theft, fire or a power surge.
+set -euo pipefail
+
+BACKUP_ROOT=/mnt/backup
+KEEP=8
+
+# source|path inside a snapshot (docs/design.md, content layout)
+SOURCES=(
+  "/mnt/projects/cj-mills|projects/cj-mills"
+  "/mnt/projects/clients|projects/clients"
+  "/mnt/projects/blender|projects/blender"
+  "/mnt/projects/notes|projects/notes"
+  "/mnt/projects/records|projects/records"
+  "/mnt/projects/archive|projects/archive"
+  "/mnt/projects/Projects/Utility_Projects|projects/utility-projects"
+  "/mnt/data/media/images|data/media/images"
+)
+
+snapshots() {  # dated snapshot directories, oldest first
+  find "$BACKUP_ROOT/snapshots" -mindepth 1 -maxdepth 1 -type d -name '20[0-9][0-9]-*' | sort
+}
+
+copy() {  # source, relative path, previous snapshot (may be empty)
+  local src="$1" rel="$2" previous="$3" partial="$BACKUP_ROOT/snapshots/.partial"
+  local opts=(-aH --delete) code=0
+  [[ -n "$previous" ]] && opts+=("--link-dest=$previous/$rel")
+  mkdir -p "$partial/$rel"
+  rsync "${opts[@]}" "$src/" "$partial/$rel/" || code=$?
+  # 24: files vanished during the copy, normal for live data.
+  [[ "$code" == 0 || "$code" == 24 ]]
+}
+
+prune() {
+  local old
+  snapshots | head -n "-$KEEP" | while read -r old; do
+    # Only directories: files are hard links shared with the snapshots being kept.
+    find "$old" -type d ! -perm -u+w -exec chmod u+w {} +
+    rm -rf "${old:?}"
+    echo "pruned $(basename "$old")"
+  done
+}
+
+main() {
+  # Refuse without the drive: otherwise this would fill the root filesystem.
+  mountpoint -q "$BACKUP_ROOT" || { echo "error: $BACKUP_ROOT is not mounted" >&2; exit 1; }
+
+  local today final previous entry src rel
+  today="$(date +%F)"
+  final="$BACKUP_ROOT/snapshots/$today"
+  mkdir -p "$BACKUP_ROOT/snapshots"
+  # A first snapshot takes hours, so a run can overlap the timer; only one may use .partial.
+  exec 9>"$BACKUP_ROOT/snapshots/.lock"
+  flock -n 9 || { echo "error: another snapshot is running" >&2; exit 1; }
+  if [[ -e "$final" ]]; then echo "snapshot $today already exists"; exit 0; fi
+
+  previous="$(snapshots | tail -n 1)"
+  for entry in "${SOURCES[@]}"; do
+    IFS='|' read -r src rel <<< "$entry"
+    [[ -d "$src" ]] || { echo "error: source $src is missing" >&2; exit 1; }
+    copy "$src" "$rel" "$previous"
+    echo "copied $rel"
+  done
+
+  # Only a complete snapshot gets a date; an interrupted run resumes from .partial.
+  mv "$BACKUP_ROOT/snapshots/.partial" "$final"
+  prune
+  echo "snapshot $today complete; $(snapshots | wc -l) kept, $(df -h --output=avail "$BACKUP_ROOT" | tail -n 1 | tr -d ' ') free"
+}
+
+main "$@"; exit

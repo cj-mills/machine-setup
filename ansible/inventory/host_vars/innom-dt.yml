@@ -2,8 +2,8 @@ primary_user: innom-dt
 nvidia_gpu: true
 
 # Internal data drives (see docs/design.md, drive layout). Not yet converted:
-# 860 EVO (games), BX500 x2 (archive, backup); their old fstab entries stay
-# unmanaged until then.
+# 860 EVO (games), BX500 #1 (archive); their old fstab entries stay unmanaged until
+# then.
 mounts_list:
   - path: /mnt/projects
     uuid: 236ab511-7295-4f29-9c99-fb4eae296fca  # WD SN850X 8TB ...0960
@@ -14,6 +14,11 @@ mounts_list:
     uuid: abf2e6ae-34f3-42f8-8cbe-ff296c939504  # WD SN850X 8TB ...0499
     fstype: ext4
     name: Data
+  - path: /mnt/backup
+    uuid: 6ab7bd46-b36d-4cc1-ba49-7656fa1a4c5a  # Crucial BX500 2TB ...A5C8, set by prepare-data-disk.sh
+    fstype: ext4
+    name: Backup
+    mode: "0700"
 
 mounts_aliases:
   - path: /mnt/SN850X_8TB_EXT4  # old projects path, still used by tools and session history

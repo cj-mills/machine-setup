@@ -1,0 +1,12 @@
+[Unit]
+Description=Snapshot what can't be re-obtained onto the backup drive
+StartLimitIntervalSec=1d
+StartLimitBurst=12
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/backup-snapshot
+Nice=10
+IOSchedulingClass=idle
+Restart=on-failure
+RestartSec=30min
