@@ -8,7 +8,8 @@
 	email = 9126128+cj-mills@users.noreply.github.com
 	name = Christian J. Mills
 {{- if eq .chezmoi.hostname "innom-dt" }}
-	signingkey = {{ (index (onepasswordDetailsFields "git-signing") "public key").value }}
+	# The public half of the "git-signing" SSH key in 1Password, also on GitHub.
+	signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKoUtwSJ8FKl1q8h2T64TCeSgtAYkAaajiS48AEBTc0E
 [commit]
 	gpgsign = true
 [gpg]
