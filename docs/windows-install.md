@@ -73,6 +73,21 @@ This also creates the Dev Drive at `P:`: a growable VHDX at `C:\DevDrive\dev-dri
 `P:\scratch` and `P:\caches`. pip, uv, npm and NuGet caches point there. A startup task
 named `Attach Dev Drive` re-attaches it at every boot, a few seconds after Windows starts.
 
+### Reaching the Linux data drives
+
+Windows can't read ext4 itself; WSL can. From Terminal (Admin), mount read-only, then use
+`\\wsl.localhost\Ubuntu\mnt\wsl\PHYSICALDRIVE<N>p1` from Windows or
+`/mnt/wsl/PHYSICALDRIVE<N>p1` from WSL. The disk shows as offline in Windows meanwhile.
+
+```powershell
+Get-Disk | Select-Object Number, FriendlyName, Size
+wsl --mount \\.\PHYSICALDRIVE<N> --partition 1 --type ext4 --options ro
+wsl --unmount \\.\PHYSICALDRIVE<N>
+```
+
+Both 8 TB drives look alike and numbers can change: `/mnt/data` is the one holding
+`datasets`, `media`, `models` and `vm`.
+
 ## 4. Manual steps
 
 - **BitLocker**: Settings → Privacy & security → Device encryption (or Control Panel →
