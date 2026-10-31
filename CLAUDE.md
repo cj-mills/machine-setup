@@ -89,6 +89,8 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
   catches up: install those from the vendor and verify the Authenticode signer instead.
 - In a narrow terminal, `lsblk` (util-linux 2.39) never finishes and floods output:
   scripts pipe it through `cat`. Tests with piped output can't catch terminal-only bugs.
+- winget unit descriptions are YAML flow values: a `:` breaks parsing and a `,` truncates
+  them. A VHDX isn't re-attached at boot; `New-VHD` needs Hyper-V (use `diskpart`).
 - `.chezmoiignore` gates on `.chezmoi.hostname`, and an ignored template is never
   rendered, so `onepasswordDocument` only runs on the workstation (not in `ms-test`).
 - Ubuntu's AppArmor profile for swtpm only allows the home directory and a few system

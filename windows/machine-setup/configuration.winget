@@ -139,6 +139,61 @@ properties:
           [Microsoft.Win32.Registry]::GetValue('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo', 'Enabled', $null) -eq 3
         SetScript: |
           & sudo.exe config --enable normal
+    # Dev Drive: repositories and package caches on ReFS, which Defender scans asynchronously.
+    # A growable VHDX on C:, so BitLocker covers it and C: is never resized. P: mirrors
+    # /mnt/projects, and a high letter can't collide with other volumes. diskpart creates
+    # it because New-VHD needs Hyper-V. Windows doesn't re-attach a VHDX at boot, so a
+    # startup task does. Runs in Windows PowerShell 5.1, like the Appx units below.
+    - resource: PSDscResources/Script
+      id: dev-drive
+      directives: { description: Dev Drive (attached at every boot), securityContext: elevated }
+      settings:
+        GetScript: |
+          @{ Result = [string](Test-Path 'C:\DevDrive\dev-drive.vhdx') }
+        TestScript: |
+          (Test-Path 'C:\DevDrive\dev-drive.vhdx') -and
+              (@(& fsutil.exe devdrv query P: 2>$null) -contains 'This is a trusted developer volume.') -and
+              (-not ('cj-mills', 'upstream', 'scratch', 'caches' | Where-Object { -not (Test-Path "P:\$_") })) -and
+              [bool](& powershell.exe -NoProfile -NonInteractive -Command { Get-ScheduledTask -TaskName 'Attach Dev Drive' -ErrorAction SilentlyContinue })
+        SetScript: |
+          & powershell.exe -NoProfile -NonInteractive -Command {
+              $ErrorActionPreference = 'Stop'
+              $vhd = 'C:\DevDrive\dev-drive.vhdx'
+              if (Test-Path $vhd) {
+                  if (-not (Test-Path P:\)) { Mount-DiskImage -ImagePath $vhd | Out-Null }
+              } else {
+                  if (Test-Path P:\) { throw 'P: is already in use by another volume.' }
+                  New-Item -ItemType Directory -Force -Path (Split-Path $vhd) | Out-Null
+                  $commands = Join-Path $env:TEMP 'dev-drive.diskpart'
+                  "create vdisk file=`"$vhd`" maximum=2097152 type=expandable",
+                      "select vdisk file=`"$vhd`"", 'attach vdisk', 'convert gpt',
+                      'create partition primary', 'assign letter=P' | Set-Content -Path $commands -Encoding ascii
+                  & diskpart.exe /s $commands | Out-Null
+                  if ($LASTEXITCODE) { throw "diskpart failed with exit code $LASTEXITCODE." }
+                  Remove-Item $commands
+                  Format-Volume -DriveLetter P -DevDrive -NewFileSystemLabel Dev -Confirm:$false -Force | Out-Null
+              }
+              'cj-mills', 'upstream', 'scratch', 'caches' | ForEach-Object { New-Item -ItemType Directory -Force -Path "P:\$_" | Out-Null }
+              $action = New-ScheduledTaskAction -Execute powershell.exe -Argument "-NoProfile -NonInteractive -Command `"Mount-DiskImage -ImagePath $vhd`""
+              $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
+              $principal = New-ScheduledTaskPrincipal -UserId SYSTEM -LogonType ServiceAccount -RunLevel Highest
+              Register-ScheduledTask -TaskName 'Attach Dev Drive' -Action $action -Trigger (New-ScheduledTaskTrigger -AtStartup) `
+                  -Principal $principal -Settings $settings -Force | Out-Null
+          }
+          if ($LASTEXITCODE) { throw "Dev Drive setup failed with exit code $LASTEXITCODE." }
+    - resource: PSDscResources/Script
+      id: dev-drive-caches
+      directives: { description: Package caches on the Dev Drive, securityContext: elevated }
+      settings:
+        GetScript: |
+          @{ Result = [string][Environment]::GetEnvironmentVariable('PIP_CACHE_DIR', 'Machine') }
+        TestScript: |
+          $caches = @{ PIP_CACHE_DIR = 'pip'; UV_CACHE_DIR = 'uv'; npm_config_cache = 'npm'; NUGET_PACKAGES = 'nuget' }
+          -not ($caches.Keys | Where-Object { [Environment]::GetEnvironmentVariable($_, 'Machine') -ne "P:\caches\$($caches[$_])" })
+        SetScript: |
+          $caches = @{ PIP_CACHE_DIR = 'pip'; UV_CACHE_DIR = 'uv'; npm_config_cache = 'npm'; NUGET_PACKAGES = 'nuget' }
+          foreach ($name in $caches.Keys) { [Environment]::SetEnvironmentVariable($name, "P:\caches\$($caches[$name])", 'Machine') }
+      dependsOn: [dev-drive]
     - resource: PSDscResources/Registry
       id: explorer-file-extensions
       directives: { description: Show file extensions }
@@ -477,7 +532,11 @@ properties:
           } else {
               $p = Start-Process -FilePath "$env:SystemRoot\System32\OneDriveSetup.exe" -ArgumentList '/uninstall' -Wait -PassThru
           }
-          if ($p.ExitCode) { throw "OneDrive uninstaller failed with exit code $($p.ExitCode)." }
+          # Judged by the result: the uninstaller can report an error after removing OneDrive.
+          if ((Test-Path "$env:LOCALAPPDATA\Microsoft\OneDrive\OneDrive.exe") -or
+              (Test-Path "$env:ProgramFiles\Microsoft OneDrive\OneDrive.exe")) {
+              throw "OneDrive is still installed (uninstaller exit code $($p.ExitCode))."
+          }
 
     # --- Applications ---------------------------------------------------------------
     - resource: Microsoft.WinGet.DSC/WinGetPackage
