@@ -131,8 +131,9 @@ Next:
      clean install, `/mnt/SN850X_8TB_EXT4` becomes a plain folder of compatibility links
      in the `mounts` role, not a bind mount. Test the Qt apps on 26.04 in `ms-test`,
      restoring only env `cjm-transcript-correction-core`.
-   - GitHub: 41 `cjm-*` repos go private, then archived. Not `cjm-demucs-v4`,
-     `cjm-design-system`, tutorial packages, or the 59 cjm repos outside that folder.
+   - GitHub is done (2026-10-30): the 41 substrate-era `cjm-*` repos are private and
+     archived, and their PyPI releases stay up. Still public: `cjm-demucs-v4`,
+     `cjm-design-system`, the tutorial packages, and the 59 cjm repos outside that folder.
    - `/mnt/backup` is live (BX500 #2, 2026-10-30): the weekly `backup-snapshot` timer is
      on, and the first snapshot (543 GB) matches its sources by checksum. Remove
      `Utility_Projects` from its `SOURCES` when those projects move. It stays in the
