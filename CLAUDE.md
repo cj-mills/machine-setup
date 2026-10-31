@@ -150,11 +150,11 @@ Done and verified:
   must come along. The scratchpad resolves the link, so its live transcript feed looks
   under `-mnt-projects-archive-cjm-era-*`; that only matters for a session running there.
 
-In progress elsewhere: a linked session is porting Monitor Reconnect Restore to GNOME 50
-(session `local_caa0bda2-08d0-4868-9112-5f15cb411717`) in its own repo, with uncommitted
-changes there. It won't load on 26.04 without that (declared GNOME 46 only; GNOME 49
-removed `get_maximized()` and maximize flags). `home/` links it from
-`/mnt/projects/cj-mills/monitor-reconnect-restore` after the final move.
+Monitor Reconnect Restore is ported to GNOME 46 and 50 in its own repo: commits `1dd7f08`
+and `be7e51c`, local, not pushed there. Its test scenarios passed on both versions, but a
+real monitor reconnect on 26.04 is untested, and this desktop runs the old code until the
+next login. `home/` links it from `/mnt/projects/cj-mills/monitor-reconnect-restore` after
+the final move.
 
 Next:
 1. Ubuntu 26.04 autoinstall config: not written yet. LVM on the Linux drive by serial
