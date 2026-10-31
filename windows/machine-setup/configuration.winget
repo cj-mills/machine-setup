@@ -156,22 +156,38 @@ properties:
               (-not ('cj-mills', 'upstream', 'scratch', 'caches' | Where-Object { -not (Test-Path "P:\$_") })) -and
               [bool](& powershell.exe -NoProfile -NonInteractive -Command { Get-ScheduledTask -TaskName 'Attach Dev Drive' -ErrorAction SilentlyContinue })
         SetScript: |
-          & powershell.exe -NoProfile -NonInteractive -Command {
+          $output = & powershell.exe -NoProfile -NonInteractive -Command {
               $ErrorActionPreference = 'Stop'
               $vhd = 'C:\DevDrive\dev-drive.vhdx'
               if (Test-Path $vhd) {
                   if (-not (Test-Path P:\)) { Mount-DiskImage -ImagePath $vhd | Out-Null }
+                  # Repairs a failed first run, but never a volume holding anything.
+                  if (@(& fsutil.exe devdrv query P: 2>$null) -notcontains 'This is a trusted developer volume.') {
+                      $contents = Get-ChildItem P:\ -Force -ErrorAction SilentlyContinue |
+                          Where-Object { $_.Name -notin 'System Volume Information', '$RECYCLE.BIN' }
+                      if ($contents | Where-Object { -not $_.PSIsContainer -or (Get-ChildItem $_.FullName -Recurse -File -Force -ErrorAction SilentlyContinue) }) {
+                          throw 'P: holds files but is not a Dev Drive; move them off it, then run this again.'
+                      }
+                      Format-Volume -DriveLetter P -DevDrive -NewFileSystemLabel Dev -Confirm:$false -Force | Out-Null
+                  }
               } else {
                   if (Test-Path P:\) { throw 'P: is already in use by another volume.' }
                   New-Item -ItemType Directory -Force -Path (Split-Path $vhd) | Out-Null
                   $commands = Join-Path $env:TEMP 'dev-drive.diskpart'
-                  "create vdisk file=`"$vhd`" maximum=2097152 type=expandable",
-                      "select vdisk file=`"$vhd`"", 'attach vdisk', 'convert gpt',
-                      'create partition primary', 'assign letter=P' | Set-Content -Path $commands -Encoding ascii
+                  Set-Content -Path $commands -Encoding ascii -Value "create vdisk file=`"$vhd`" maximum=2097152 type=expandable"
                   & diskpart.exe /s $commands | Out-Null
                   if ($LASTEXITCODE) { throw "diskpart failed with exit code $LASTEXITCODE." }
                   Remove-Item $commands
-                  Format-Volume -DriveLetter P -DevDrive -NewFileSystemLabel Dev -Confirm:$false -Force | Out-Null
+                  $disk = Mount-DiskImage -ImagePath $vhd -PassThru | Get-Disk
+                  Initialize-Disk -Number $disk.Number -PartitionStyle GPT
+                  # The letter comes last: on an unformatted volume, Explorer offers to format
+                  # it, and that prompt interfered with the format on the real machine.
+                  $partition = New-Partition -DiskNumber $disk.Number -UseMaximumSize
+                  Format-Volume -Partition $partition -DevDrive -NewFileSystemLabel Dev -Confirm:$false -Force | Out-Null
+                  Set-Partition -DiskNumber $disk.Number -PartitionNumber $partition.PartitionNumber -NewDriveLetter P
+              }
+              if (@(& fsutil.exe devdrv query P: 2>$null) -notcontains 'This is a trusted developer volume.') {
+                  throw "P: is not a trusted Dev Drive: $(& fsutil.exe devdrv query P: 2>&1)"
               }
               'cj-mills', 'upstream', 'scratch', 'caches' | ForEach-Object { New-Item -ItemType Directory -Force -Path "P:\$_" | Out-Null }
               $action = New-ScheduledTaskAction -Execute powershell.exe -Argument "-NoProfile -NonInteractive -Command `"Mount-DiskImage -ImagePath $vhd`""
@@ -179,8 +195,8 @@ properties:
               $principal = New-ScheduledTaskPrincipal -UserId SYSTEM -LogonType ServiceAccount -RunLevel Highest
               Register-ScheduledTask -TaskName 'Attach Dev Drive' -Action $action -Trigger (New-ScheduledTaskTrigger -AtStartup) `
                   -Principal $principal -Settings $settings -Force | Out-Null
-          }
-          if ($LASTEXITCODE) { throw "Dev Drive setup failed with exit code $LASTEXITCODE." }
+          } 2>&1 | Out-String
+          if ($LASTEXITCODE) { throw "Dev Drive setup failed: $output" }
     - resource: PSDscResources/Script
       id: dev-drive-caches
       directives: { description: Package caches on the Dev Drive, securityContext: elevated }

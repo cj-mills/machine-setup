@@ -133,6 +133,13 @@ if (-not (Get-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -ErrorAction Silentl
 }
 # The VM's NAT network is classified Public; the capability's rule may not cover it.
 Set-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -Profile Any -Enabled True
+# Sign in at every boot, so desktop-run works after a reboot. The answer file's AutoLogon
+# only covers the first boot, and the account's password is blank.
+$winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+Set-ItemProperty $winlogon AutoAdminLogon '1'
+Set-ItemProperty $winlogon DefaultUserName $env:USERNAME
+Set-ItemProperty $winlogon DefaultPassword ''
+Remove-ItemProperty $winlogon AutoLogonCount -ErrorAction SilentlyContinue
 Write-Output 'Test VM: SSH enabled.'
 HOOK
 }

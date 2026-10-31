@@ -51,6 +51,9 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
   `scripts/test-vm.sh desktop-run 'powershell -NoProfile -ExecutionPolicy Bypass -File C:\machine-setup\bootstrap.ps1 -AcceptAgreements'`
   (the runbook's command; desktop-run runs it as if typed at a fresh prompt).
   The user approved `--accept-configuration-agreements` for the test VM only.
+  The current `fresh-install` snapshot predates VM autologon: for `desktop-run` after a
+  reboot, set Winlogon `AutoAdminLogon=1`, `DefaultUserName`, `DefaultPassword=''` over SSH.
+  Windows' console output can vanish through `grep`: write to a file and `scp` it back.
 
 ## Lessons (each cost a debugging round)
 
@@ -89,6 +92,9 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
   catches up: install those from the vendor and verify the Authenticode signer instead.
 - In a narrow terminal, `lsblk` (util-linux 2.39) never finishes and floods output:
   scripts pipe it through `cat`. Tests with piped output can't catch terminal-only bugs.
+- A partition with a drive letter but no filesystem makes Explorer offer to format it,
+  which interfered with a Dev Drive format on the real machine (nobody clicks in the VM):
+  format first, assign the letter last. ReFS is only available on Pro through `-DevDrive`.
 - winget unit descriptions are YAML flow values: a `:` breaks parsing and a `,` truncates
   them. A VHDX isn't re-attached at boot; `New-VHD` needs Hyper-V (use `diskpart`).
 - `.chezmoiignore` gates on `.chezmoi.hostname`, and an ignored template is never
@@ -145,9 +151,8 @@ Next:
      partition is the disposable `testbed`; nothing on it is kept.
    - Windows: Dev Drive at `P:` is in the configuration, verified in the VM (66 units;
      survives reboots); apply it on the real machine with `bootstrap.ps1`. Test
-     `wsl --mount` there to choose between mounting and copying data. Leftovers (user):
-     Start pins, VLC audio default. VM harness: after a reboot post-apply, autologon no
-     longer happened, so `desktop-run` timed out; SSH checks still work.
+     `wsl --mount` worked on the real machine read-only (`/mnt/data`, disk 4 that boot);
+     Windows mounts rather than copies. Leftovers (user): Start pins, VLC audio default.
 2. Linux dotfiles into `home/`: `.bashrc` (history, conda init), git with 1Password SSH
    signing, `~/.local/bin` scripts (read each before committing: public repo), VS Code
    extensions, curated GNOME settings incl. event sounds off, Miniforge, Proton Drive
