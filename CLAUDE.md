@@ -114,11 +114,11 @@ Next:
    Copied and checksummed, originals untouched: `BX500_2TB_2/Backups` (now in
    `records/backups`), `/mnt/Storage` (`archive/storage-partition`), `~/miniforge3`
    (`/mnt/data/transfer`). Left:
-   - Cross-drive copies to `/mnt/data` are done and checksummed (2026-10-30): media,
-     datasets, models, VMs, ISOs, course videos. `~/.cache/huggingface` is repointed; the
-     VMs run from `/mnt/data/vm`. The user deletes the originals once `ms-win` boots
-     there, then `/mnt/projects/Model_Cache` becomes a link to `/mnt/data/models` (era
-     `cjm.yaml` files and scripts hard-code it). `Utility_CLI_Scripts` waits for step 2.
+   - Cross-drive moves are done (2026-10-30): media, datasets, models, VMs, ISOs and course
+     videos live on `/mnt/data`, checksummed, and the originals are deleted. Both VMs boot
+     from `/mnt/data/vm`. `/mnt/projects/Model_Cache` is a compatibility link to
+     `/mnt/data/models` (era `cjm.yaml` files hard-code it). `Utility_CLI_Scripts` waits
+     for step 2. `/mnt/data` holds the only copy until `/mnt/backup` exists.
    - Last, in one go: move `Projects/Utility_Projects/*` into `cj-mills/` with
      `machine-setup`, and rename their `~/.claude/projects` folders (`christianjmills`
      too). `protonmail-archive`'s conda env points at its current path.
