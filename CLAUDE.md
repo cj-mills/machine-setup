@@ -92,6 +92,9 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
   catches up: install those from the vendor and verify the Authenticode signer instead.
 - In a narrow terminal, `lsblk` (util-linux 2.39) never finishes and floods output:
   scripts pipe it through `cat`. Tests with piped output can't catch terminal-only bugs.
+- Two sessions can't share a test VM. For a second one, copy a snapshot:
+  `qemu-img convert -U -O qcow2 -l snapshot.name=fresh-ssh`, plus `OVMF_VARS`, the SSH key
+  and a new `VM_NAME` with `VM_SSH_PORT`.
 - A partition with a drive letter but no filesystem makes Explorer offer to format it,
   which interfered with a Dev Drive format on the real machine (nobody clicks in the VM):
   format first, assign the letter last. ReFS is only available on Pro through `-DevDrive`.
@@ -129,8 +132,8 @@ Next:
    - Cross-drive moves are done (2026-10-30): media, datasets, models, VMs, ISOs and course
      videos live on `/mnt/data`, checksummed, and the originals are deleted. Both VMs boot
      from `/mnt/data/vm`. `/mnt/projects/Model_Cache` is a compatibility link to
-     `/mnt/data/models` (era `cjm.yaml` files hard-code it). `Utility_CLI_Scripts` waits
-     for step 2. `/mnt/data` holds the only copy until `/mnt/backup` exists.
+     `/mnt/data/models` (era `cjm.yaml` files hard-code it). `/mnt/projects/Utility_CLI_Scripts`
+     can be archived. `/mnt/data` holds the only copy until `/mnt/backup` exists.
    - Last, in one go: move `Projects/Utility_Projects/*` into `cj-mills/` with
      `machine-setup`, and rename their `~/.claude/projects` folders (`christianjmills`
      too). `protonmail-archive`'s conda env points at its current path.
@@ -161,10 +164,11 @@ Next:
      cause; not reproduced in the VM. `wsl --mount` worked read-only on the real machine
      (`/mnt/data`, disk 4 that boot); Windows mounts rather than copies. Leftovers (user):
      Start pins, VLC audio default.
-2. Linux dotfiles into `home/`: `.bashrc` (history, conda init), git with 1Password SSH
-   signing, `~/.local/bin` scripts (read each before committing: public repo), VS Code
-   extensions, curated GNOME settings incl. event sounds off, Miniforge, Proton Drive
-   Linux client if one exists.
+2. Linux dotfiles are in `home/`, verified on clean 26.04 (2026-10-31: full `bootstrap.sh`
+   and `chezmoi apply`, 33 checks, second apply changes nothing). `Utility_CLI_Scripts`
+   is now redundant. After the clean install: enable the SSH agent and CLI integration in
+   the 1Password app, then re-check Proton Drive for Linux. Monitor Reconnect Restore
+   needs its GNOME 50 port (own repo) to load on 26.04.
 3. Ubuntu 26.04 autoinstall config (LVM: 2 GB ESP, root ~2.5 TB, 64 GB swap, ~1 TB free),
    then the Ubuntu clean install (back up `~/.claude`, `~/.cjm` and other state first; chezmoi
    renders the three `site-analytics-*` 1Password documents, added and verified
