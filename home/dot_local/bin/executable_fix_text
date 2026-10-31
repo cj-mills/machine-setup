@@ -1,0 +1,150 @@
+#!/usr/bin/env python3
+import re
+import argparse
+import sys
+from pathlib import Path
+
+def clean_and_reflow(text):
+    """
+    Splits text into blocks. 
+    - If a block looks like code, it preserves formatting.
+    - If a block looks like a Markdown table, it preserves formatting.
+    - If it looks like text, it reflows it (removes line breaks).
+    - If the text contains Markdown lists, it preserves the list structure.
+    """
+    # 1. Clean trailing whitespace from every individual line first
+    lines = [line.rstrip() for line in text.splitlines()]
+    cleaned_text = "\n".join(lines)
+
+    # 2. Split text into blocks based on double newlines (empty lines)
+    blocks = re.split(r'\n\s*\n', cleaned_text)
+    
+    processed_blocks = []
+
+    # Heuristic keywords that indicate a block is likely Python code
+    code_indicators = [
+        'def ', 'class ', 'async ', 'return ', 
+        'import ', '@', '    #', '    "', 
+        ' = ', '(', ')' # Added to catch variable assignments and function calls
+    ]
+
+    # Regex to identify Markdown list items (bullets or numbers)
+    # Matches: Start of line, optional indent, marker (-, *, + or 1.), required space
+    list_item_pattern = re.compile(r'^(\s*)([-*+]|\d+\.)\s+')
+
+    # Regex to identify Markdown table rows (lines starting with | or containing |---|)
+    table_row_pattern = re.compile(r'^\s*\|')
+    table_separator_pattern = re.compile(r'\|[\s:\-]+\|')
+
+    for block in blocks:
+        if not block.strip():
+            continue
+
+        # --- A. DETECT CODE ---
+        is_code = any(indicator in block for indicator in code_indicators)
+        
+        # Additionally, if the block starts with a Python comment or decorator
+        stripped_start = block.strip()
+        if stripped_start.startswith("#") or stripped_start.startswith("@"):
+            is_code = True
+
+        # --- B. DETECT MARKDOWN TABLE ---
+        is_table = False
+        block_lines = block.splitlines()
+        if len(block_lines) >= 2:
+            # A table typically has multiple lines starting with |
+            # and includes a separator row like |---|---|
+            pipe_lines = sum(1 for line in block_lines if table_row_pattern.match(line))
+            has_separator = any(table_separator_pattern.search(line) for line in block_lines)
+            
+            # Consider it a table if most lines start with | and there's a separator
+            if has_separator and pipe_lines >= 2:
+                is_table = True
+
+        if is_code or is_table:
+            # IT IS CODE OR TABLE: Preserve the block exactly as is
+            processed_blocks.append(block)
+        
+        else:
+            # --- C. PROCESS TEXT (Handle Lists) ---
+            # We cannot just blindly replace newlines with spaces anymore,
+            # because that destroys lists. We must process line by line.
+            
+            reflowed_lines = []
+            
+            # Buffer to hold words for the current line/paragraph being built
+            current_line_buffer = [] 
+
+            for line in block_lines:
+                stripped_line = line.strip()
+                if not stripped_line: 
+                    continue
+                
+                # Check if this line looks like the start of a new list item
+                if list_item_pattern.match(line):
+                    # 1. Flush the previous buffer (if any) to finish the previous paragraph/item
+                    if current_line_buffer:
+                        reflowed_lines.append(" ".join(current_line_buffer))
+                        current_line_buffer = []
+                    
+                    # 2. Add the list item to the buffer.
+                    # We use line.rstrip() instead of stripped_line to PRESERVE 
+                    # the leading indentation (important for nested lists).
+                    current_line_buffer.append(line.rstrip())
+                
+                else:
+                    # It is standard text or a continuation of the previous line.
+                    if not current_line_buffer:
+                        # Start of a new paragraph block
+                        current_line_buffer.append(stripped_line)
+                    else:
+                        # Continue the previous line (reflow)
+                        current_line_buffer.append(stripped_line)
+
+            # Flush whatever is left in the buffer
+            if current_line_buffer:
+                reflowed_lines.append(" ".join(current_line_buffer))
+            
+            # Join the processed lines with newlines
+            processed_blocks.append("\n".join(reflowed_lines))
+
+    # 3. Rejoin blocks with double newlines
+    return "\n\n".join(processed_blocks)
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Clean extra newlines (Reflows text, preserves code & lists)."
+    )
+    
+    parser.add_argument(
+        "filepath", 
+        nargs="?", 
+        default="./target_text.txt",
+        help="Path to the text file to clean and overwrite (default: ./target_text.txt)"
+    )
+
+    args = parser.parse_args()
+    file_path = Path(args.filepath)
+
+    if not file_path.exists():
+        print(f"Error: The file '{file_path}' was not found.")
+        sys.exit(1)
+
+    try:
+        # 1. Read the file
+        print(f"Reading {file_path}...")
+        raw_text = file_path.read_text(encoding="utf-8")
+        
+        # 2. Process the text
+        clean_text = clean_and_reflow(raw_text)
+        
+        # 3. Overwrite the file
+        file_path.write_text(clean_text, encoding="utf-8")
+        print(f"Success! '{file_path}' has been updated.")
+        
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

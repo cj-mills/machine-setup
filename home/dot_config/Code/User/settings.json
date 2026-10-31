@@ -1,0 +1,15 @@
+{
+    "security.workspace.trust.enabled": false,
+    "telemetry.telemetryLevel": "off",
+    "editor.largeFileOptimizations": false,
+    "workbench.secondarySideBar.defaultVisibility": "hidden",
+    "chat.agent.enabled": false,
+    "chat.disableAIFeatures": true,
+    "files.watcherExclude": {
+        "/runtime/bin/**": true,
+        "/runtime/envs/**": true,
+        "/runtime/pkgs/**": true
+    },
+    "editor.maxTokenizationLineLength": 20000000,
+    "claudeCode.preferredLocation": "panel"
+}

@@ -1,0 +1,8 @@
+{{ if eq .chezmoi.hostname "innom-dt" -}}
+#!/usr/bin/env bash
+# Link our monitor extension from its project on the data drive, at every apply: its
+# install script is idempotent, and the GNOME settings above replace the enabled list.
+set -euo pipefail
+installer=/mnt/projects/cj-mills/monitor-reconnect-restore/install.sh
+if [[ -x "$installer" ]]; then "$installer"; fi
+{{ end -}}

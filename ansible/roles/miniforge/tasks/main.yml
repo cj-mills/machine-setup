@@ -1,0 +1,18 @@
+- name: Find the primary user's home directory
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ primary_user }}"
+
+- name: Download the Miniforge installer
+  ansible.builtin.get_url:
+    url: "https://github.com/conda-forge/miniforge/releases/download/{{ miniforge_version }}/Miniforge3-{{ miniforge_version }}-Linux-x86_64.sh"
+    dest: "/var/cache/miniforge-{{ miniforge_version }}.sh"
+    checksum: "sha256:{{ miniforge_sha256 }}"
+    mode: "0644"
+
+- name: Install Miniforge for the primary user
+  ansible.builtin.command:
+    cmd: bash /var/cache/miniforge-{{ miniforge_version }}.sh -b -p {{ ansible_facts.getent_passwd[primary_user][4] }}/miniforge3
+    creates: "{{ ansible_facts.getent_passwd[primary_user][4] }}/miniforge3/bin/conda"
+  become: true
+  become_user: "{{ primary_user }}"

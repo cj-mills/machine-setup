@@ -1,0 +1,20 @@
+[credential "https://github.com"]
+	helper =
+	helper = !/usr/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper =
+	helper = !/usr/bin/gh auth git-credential
+[user]
+	email = 9126128+cj-mills@users.noreply.github.com
+	name = Christian J. Mills
+{{- if eq .chezmoi.hostname "innom-dt" }}
+	signingkey = {{ (index (onepasswordDetailsFields "git-signing") "public key").value }}
+[commit]
+	gpgsign = true
+[gpg]
+	format = ssh
+[gpg "ssh"]
+	program = /opt/1Password/op-ssh-sign
+{{- end }}
+[pull]
+	rebase = false
