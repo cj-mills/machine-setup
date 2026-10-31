@@ -36,7 +36,9 @@ main() {
   read -r answer
   [[ "$answer" == "$name" ]] || die "name did not match; nothing changed"
 
-  for part in "$disk"-part*; do [[ -b "$part" ]] && wipefs -a -q "$part"; done
+  # Forced from here on: the name typed above is the confirmation, and old boot sectors
+  # otherwise make wipefs refuse and mkfs prompt again.
+  for part in "$disk"-part*; do [[ -b "$part" ]] && wipefs -a -f -q "$part"; done
   sgdisk --zap-all "$disk" >/dev/null
   sgdisk --new=1:0:0 --typecode=1:8300 --change-name="1:$label" "$disk" >/dev/null
   partprobe "$disk" 2>/dev/null || true
@@ -44,7 +46,7 @@ main() {
 
   part="$disk-part1"
   [[ -b "$part" ]] || die "$part did not appear"
-  mkfs.ext4 -q -m 0 -L "$label" -U "$uuid" "$part"
+  mkfs.ext4 -F -q -m 0 -L "$label" -U "$uuid" "$part"
   udevadm settle
   echo "Prepared $disk: one ext4 filesystem, label $label, UUID $uuid."
 }
