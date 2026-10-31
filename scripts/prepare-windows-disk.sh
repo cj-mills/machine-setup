@@ -32,7 +32,8 @@ main() {
     if lsblk -no MOUNTPOINTS "$disk" | grep -q .; then
       die "a partition on $disk is mounted; unmount it first"
     fi
-    lsblk -o NAME,SIZE,MODEL,SERIAL,FSTYPE,LABEL "$disk"
+    # Through cat: in a narrow terminal, lsblk (util-linux 2.39) prints forever.
+    lsblk -o NAME,SIZE,MODEL,SERIAL,FSTYPE,LABEL "$disk" | cat
     name="$(basename "$disk")"
     echo
     echo "This ERASES the whole disk above. Type its name to continue:"
