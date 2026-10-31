@@ -26,7 +26,8 @@ main() {
     die "a partition on $disk is mounted; unmount it first"
   fi
 
-  lsblk -o NAME,SIZE,MODEL,SERIAL,FSTYPE,LABEL "$disk"
+  # Through cat: in a narrow terminal, lsblk (util-linux 2.39) prints forever.
+  lsblk -o NAME,SIZE,MODEL,SERIAL,FSTYPE,LABEL "$disk" | cat
   local name answer part
   name="$(basename "$disk")"
   echo
