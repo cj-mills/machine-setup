@@ -171,8 +171,9 @@ Next:
    needs its GNOME 50 port (own repo) to load on 26.04.
 3. Ubuntu 26.04 autoinstall config (LVM: 2 GB ESP, root ~2.5 TB, 64 GB swap, ~1 TB free),
    then the Ubuntu clean install (back up `~/.claude`, `~/.cjm` and other state first; chezmoi
-   renders the three `site-analytics-*` 1Password documents, added and verified
-   2026-10-30).
+   renders the `site-analytics-*`, `hf-write-token`, `pypirc` and `aws-*` 1Password
+   documents, all verified against the working files, and the `git-signing` SSH key is on
+   GitHub, 2026-10-31).
 
 Later: Visual Studio + workloads (when a C++/Unreal project needs it; confirm
 `Microsoft.VisualStudio.DSC/VSComponents` IDs in the VM), Blender 5.2.3 bump (both platforms), convert the 860 EVO (`games`)
