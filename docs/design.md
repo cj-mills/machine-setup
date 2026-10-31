@@ -76,7 +76,7 @@ wiped whole.
 1. Back up whatever in `~` isn't reproducible, then take a final `backup-snapshot`. Re-run `scripts/snapshot-system.sh` for a final inventory.
 2. Boot the 26.04 installer with the autoinstall config. Its storage section targets the Linux drive by serial and lays out the ESP and LVM pool from the drive-layout table; confirming that target is the only interactive step.
 3. Unattended: OS install → first boot → bootstrap runs the Ansible system layer, including data-drive mounts (no secrets needed).
-4. Sign in to 1Password, then `chezmoi apply` for the user layer.
+4. Enable the SSH agent and CLI integration in the 1Password app and sign in, then run `chezmoi apply` from a desktop terminal for the user layer.
 
 Validated in a 26.04 VM before running on hardware.
 
