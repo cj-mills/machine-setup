@@ -92,6 +92,9 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
   catches up: install those from the vendor and verify the Authenticode signer instead.
 - In a narrow terminal, `lsblk` (util-linux 2.39) never finishes and floods output:
   scripts pipe it through `cat`. Tests with piped output can't catch terminal-only bugs.
+- Two sessions can't share a test VM. For a second one, copy a snapshot:
+  `qemu-img convert -U -O qcow2 -l snapshot.name=fresh-ssh`, plus `OVMF_VARS`, the SSH key
+  and a new `VM_NAME` with `VM_SSH_PORT`.
 - A partition with a drive letter but no filesystem makes Explorer offer to format it,
   which interfered with a Dev Drive format on the real machine (nobody clicks in the VM):
   format first, assign the letter last. ReFS is only available on Pro through `-DevDrive`.
