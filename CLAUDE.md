@@ -137,8 +137,14 @@ Next:
    - Pre-wipe sync: `/mnt/Storage` again (`~/Downloads` still points there); move
      `~/cjm-dev-graph-private` and `~/.cjm` into the archive with links back; on the
      clean install, `/mnt/SN850X_8TB_EXT4` becomes a plain folder of compatibility links
-     in the `mounts` role, not a bind mount. Test the Qt apps on 26.04 in `ms-test`,
-     restoring only env `cjm-transcript-correction-core`.
+     in the `mounts` role, not a bind mount. Verified on clean 26.04 in `ms-test`
+     (2026-10-31): with those links, a fresh Miniforge and only env
+     `cjm-transcript-correction-core` restored, both Qt apps show the real graph on
+     Wayland and X11. Their graph capability's Python lives in
+     `cjm-transcript-correction-core/runtime/envs/`, inside the archive; `.cjm/manifests`
+     and `.cjm/bin` must come along. The scratchpad resolves the symlink, so its live
+     transcript feed looks under `-mnt-projects-archive-cjm-era-*`; only matters for a
+     session running there.
    - GitHub is done (2026-10-30): the 41 substrate-era `cjm-*` repos are private and
      archived, and their PyPI releases stay up. Still public: `cjm-demucs-v4`,
      `cjm-design-system`, the tutorial packages, and the 59 cjm repos outside that folder.

@@ -13,6 +13,11 @@ extra_packages:
   - rhythmbox
   - totem
   - transmission-gtk
+  # Qt 6 from pip (PySide6) needs these for X11; a fresh 26.04 desktop doesn't have them.
+  - libxcb-cursor0
+  - libxcb-icccm4
+  - libxcb-keysyms1
+  - libxkbcommon-x11-0
 
 # Third-party apt repositories, handled by the vendor_repos role.
 #
