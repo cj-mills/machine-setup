@@ -118,6 +118,11 @@ Content is sorted by how it behaves, which also decides what gets backed up.
 | `/mnt/data/datasets/`, `models/`, `vm/` | Datasets, model weights, test VMs and ISOs | No |
 | `/mnt/data/media/` | Read-mostly library; `images/` can't be re-obtained, so it is backed up | `images/` only |
 
+On Windows, `C:` keeps apps, game libraries and default user folders, and a Dev Drive at
+`P:` holds work, using the same names as Linux: `P:\cj-mills`, `P:\upstream`, `P:\scratch`,
+plus `P:\caches`. It is a growable VHDX on `C:`, so BitLocker covers it and `C:` is never
+resized.
+
 The Qt tools from the cjm-substrate era keep working from `archive/cjm-era` through
 compatibility links at their old paths, because their conda environment's editable
 installs and scripts hard-code `/mnt/SN850X_8TB_EXT4/Projects/GitHub/cj-mills`. Editing
@@ -154,6 +159,7 @@ those would be rework on retired code; the links go when the era's tools do.
 | 2026-10-27 | Chrome on Windows installs from Google's enterprise MSI, accepted only with a valid Google LLC Authenticode signature, instead of winget: Google replaces the file at its unversioned URL with every release, so winget's pinned checksum fails (`0x8A150011`) until the manifest catches up. That failed the real install's first bootstrap (Google published 156.0.8078.73 at 20:32 UTC; the manifest still had .48). Chrome updates itself afterwards, as on Linux (Google's apt repo). Of the other winget packages, only Steam's installer URL is unversioned, and that installer rarely changes; left on winget. |
 | 2026-10-30 | The transcript archive and the site analytics pull are standalone user timers in `home/` (`claude-transcript-archive`, `site-analytics-pull`), on the workstation only, because the cjm-substrate project is being archived and both must outlive it. Their data is collected and can't be re-obtained, so it sits in `/mnt/projects/records/`, outside any project, for future projects to read: Claude Code prunes transcripts after about 30 days, and Cloudflare keeps about 26 weeks. The pull is standard library plus the `openssl` CLI so an unattended timer depends on no environment, and it keeps the old snapshot format, so history continues unbroken. Its credentials and the Cloudflare account ID and site tag are 1Password documents rendered by chezmoi, so none of them are in this public repository. Rejected: keeping them in `cjm-substrate`, and a conda or uv environment for one RSA signature. |
 | 2026-10-30 | Interim backup: `backup-snapshot`, a weekly user timer writing dated `rsync --link-dest` snapshots to `/mnt/backup`, keeping the last 8. History is why it isn't a mirror, which would copy an accidental deletion over the only backup at the next run. Snapshots are plain folders, so restoring needs no tool, and unchanged files take no extra space. It covers what the content layout marks as backed up, about 545 GB on a 2 TB drive. The drive is in the same machine, so this doesn't cover theft, fire or a power surge, and it isn't encrypted; an off-site copy (NAS or cloud) remains a known gap. Rejected for now: restic or borg, which add a restore tool and a repository format for a stopgap. |
+| 2026-10-30 | Windows work lives on a Dev Drive at `P:`, set up by `configuration.winget`: a 2 TB growable VHDX on `C:`, ReFS, created with `diskpart` because `New-VHD` needs Hyper-V. Windows doesn't re-attach a VHDX at boot (tested), so a startup task does, as SYSTEM, before sign-in. `P:` mirrors `/mnt/projects`, and a high letter can't collide with other volumes. pip, uv, npm and NuGet caches move there too. Verified in the VM from a clean install: all 66 units, and `P:` returns after reboots with its letter, trust and data. Rejected: a partition, because `C:` must never be resized. |
 
 ## Repository layout
 

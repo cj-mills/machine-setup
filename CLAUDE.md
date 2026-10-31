@@ -89,6 +89,8 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
   catches up: install those from the vendor and verify the Authenticode signer instead.
 - In a narrow terminal, `lsblk` (util-linux 2.39) never finishes and floods output:
   scripts pipe it through `cat`. Tests with piped output can't catch terminal-only bugs.
+- winget unit descriptions are YAML flow values: a `:` breaks parsing and a `,` truncates
+  them. A VHDX isn't re-attached at boot; `New-VHD` needs Hyper-V (use `diskpart`).
 - `.chezmoiignore` gates on `.chezmoi.hostname`, and an ignored template is never
   rendered, so `onepasswordDocument` only runs on the workstation (not in `ms-test`).
 - Ubuntu's AppArmor profile for swtpm only allows the home directory and a few system
@@ -102,7 +104,7 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
 
 Done and verified: Linux system layer (VM, clean install + idempotent re-runs); data-drive
 mounts on the workstation (`/mnt/projects` with the old path as a bind mount, `/mnt/data`);
-Windows layer end to end in the VM (64 units with the runbook's exact command; the
+Windows layer end to end in the VM (66 units with the runbook's exact command; the
 removed apps stayed removed for 2 h including a reboot, after the orchestrator
 workflows that reinstalled them were deleted). Real Windows install on the second
 990 PRO (2026-10-27): all 64 units applied, and a test pass after a restart found the
@@ -141,8 +143,9 @@ Next:
      #1 already matches `/mnt/archive` (129 GB `archive/invigo`).
    - The old Windows partition and `/mnt/Storage` go with the Linux drive; the 100 GB ext4
      partition is the disposable `testbed`; nothing on it is kept.
-   - Windows: Dev Drive VHDX now rather than later (VM first); test `wsl --mount` on the
-     real machine to choose between mounting and copying data. Windows leftovers (user):
+   - Windows: Dev Drive at `P:` is in the configuration, verified in the VM (66 units;
+     survives reboots); apply it on the real machine with `bootstrap.ps1`. Test
+     `wsl --mount` there to choose between mounting and copying data. Leftovers (user):
      Start pins, VLC audio default. VM harness: after a reboot post-apply, autologon no
      longer happened, so `desktop-run` timed out; SSH checks still work.
 2. Linux dotfiles into `home/`: `.bashrc` (history, conda init), git with 1Password SSH
@@ -155,6 +158,5 @@ Next:
    2026-10-30).
 
 Later: Visual Studio + workloads (when a C++/Unreal project needs it; confirm
-`Microsoft.VisualStudio.DSC/VSComponents` IDs in the VM), Dev Drive (growable VHDX,
-re-attached at boot), Blender 5.2.3 bump (both platforms), convert the 860 EVO (`games`)
+`Microsoft.VisualStudio.DSC/VSComponents` IDs in the VM), Blender 5.2.3 bump (both platforms), convert the 860 EVO (`games`)
 and BX500s (`backup`, `archive`), Jetson and Pi roles.

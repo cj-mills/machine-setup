@@ -68,6 +68,11 @@ Accept the configuration agreement when prompted. It may first update winget fro
 Store, then runs a read-only test pass, then applies everything (apps, settings,
 removals). Re-runnable; then **restart Windows**.
 
+This also creates the Dev Drive at `P:`: a growable VHDX at `C:\DevDrive\dev-drive.vhdx`
+(up to 2 TB, using only what it holds), formatted ReFS, with `P:\cj-mills`, `P:\upstream`,
+`P:\scratch` and `P:\caches`. pip, uv, npm and NuGet caches point there. A startup task
+named `Attach Dev Drive` re-attaches it at every boot, a few seconds after Windows starts.
+
 ## 4. Manual steps
 
 - **BitLocker**: Settings → Privacy & security → Device encryption (or Control Panel →
