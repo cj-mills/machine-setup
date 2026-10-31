@@ -109,72 +109,86 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
   own `-ExecutionPolicy Bypass` was inherited by its payloads and hid this until the
   real install. Test the exact command the runbook gives, with nothing the harness adds.
 
-## Status (2026-10-27)
+## Status (2026-10-31)
 
-Done and verified: Linux system layer (VM, clean install + idempotent re-runs); data-drive
-mounts on the workstation (`/mnt/projects` with the old path as a bind mount, `/mnt/data`);
-Windows layer end to end in the VM (66 units with the runbook's exact command; the
-removed apps stayed removed for 2 h including a reboot, after the orchestrator
-workflows that reinstalled them were deleted). Real Windows install on the second
-990 PRO (2026-10-27): all 64 units applied, and a test pass after a restart found the
-app removal still in place; BitLocker on (key in 1Password); Linux ESP restored.
-Standalone transcript archive and analytics timers live on the workstation (2026-10-30);
-the `cjm-*` and `medium` timers are off, and `medium` is removed.
+The Ubuntu clean install on the Linux 990 PRO (…123428Y) is the goal. Everything below
+"Next" comes before the wipe unless it says otherwise. Keep this session's folder path
+(`/mnt/SN850X_8TB_EXT4/Projects/Utility_Projects/machine-setup`) until the final move:
+Claude Code keys history and memory by path.
+
+Done and verified:
+- Linux system layer: VM, clean install and idempotent re-runs.
+- Linux user layer in `home/`: on clean 26.04, full `bootstrap.sh` plus `chezmoi apply`
+  passed 33 checks, and a second run changes nothing. Decisions are in `docs/design.md`.
+- Windows on the second 990 PRO: all units applied, BitLocker on (key in 1Password), Dev
+  Drive live and trusted at `P:`, 66 units in the VM. `wsl --mount` worked read-only on
+  `/mnt/data` (disk numbers change; check the contents), so Windows mounts, not copies.
+  Known and accepted: Explorer opens `P:` at restart. Windows treats the VHDX as removable
+  (Explorer shows Eject), so AutoPlay's "Removable drive" choice is the likely cause; not
+  reproduced in the VM. User leftovers: Start pins, VLC audio default.
+- Data drives match `docs/design.md`, "Content layout". Originals of everything moved are
+  deleted, with checksums first. `Projects/Utility_Projects` and `Utility_CLI_Scripts`
+  (redundant now, can be archived) remain at their old paths.
+- `/mnt/backup` (BX500 #2): the weekly `backup-snapshot` timer is on, and the first
+  snapshot (543 GB) matched by checksum. Not encrypted and in the same machine; off-site
+  backup (NAS or cloud) is a known gap. BX500 #1 matches `/mnt/archive` (129 GB
+  `archive/invigo`), not yet in `mounts_list`.
+- cjm-substrate retired: 41 repos private and archived, PyPI releases stay. Still public:
+  `cjm-demucs-v4`, `cjm-design-system`, tutorial packages, the 59 cjm repos outside that
+  folder. `medium` and `medium-record` are deleted; `nalvo` and `cjm-archive` are kept.
+- Standalone timers run here: `claude-transcript-archive`, `site-analytics-pull`,
+  `backup-snapshot`. The old `cjm-*` timers are disabled. Data is in `/mnt/projects/records`.
+- 1Password holds `site-analytics-*`, `hf-write-token`, `pypirc`, `aws-credentials` and
+  `aws-config` documents, verified against the working files, plus the `git-signing` SSH
+  key, whose public half is on GitHub and in `home/dot_gitconfig.tmpl`. `op` and `chezmoi`
+  are in `~/.local/bin` here. Never run a bare `chezmoi apply` on this install: it would
+  replace `.bashrc`/`.profile` and converge the system; use targeted paths with
+  `--source="$PWD"`.
+- cjm-era Qt tools on clean 26.04 (Wayland and X11, real graph): with the links below, a
+  fresh Miniforge and only env `cjm-transcript-correction-core` restored. Their capability
+  Python is `cjm-transcript-correction-core/runtime/envs/`, inside the archive; `.cjm/`
+  must come along. The scratchpad resolves the link, so its live transcript feed looks
+  under `-mnt-projects-archive-cjm-era-*`; that only matters for a session running there.
+
+In progress elsewhere: a linked session is porting Monitor Reconnect Restore to GNOME 50
+(session `local_caa0bda2-08d0-4868-9112-5f15cb411717`) in its own repo, with uncommitted
+changes there. It won't load on 26.04 without that (declared GNOME 46 only; GNOME 49
+removed `get_maximized()` and maximize flags). `home/` links it from
+`/mnt/projects/cj-mills/monitor-reconnect-restore` after the final move.
 
 Next:
-1. Finish reorganizing the data drives and retire the cjm-substrate era before the clean
-   install. Layout: `docs/design.md`, "Content layout". `/mnt/projects` renames are done
-   (2026-10-30). `archive/cjm-era` is reached through compatibility links, verified: 21
-   editable installs resolve, both Qt apps start, `dev-graph.db` passes its check.
-   Copied and checksummed, originals untouched: `BX500_2TB_2/Backups` (now in
-   `records/backups`), `/mnt/Storage` (`archive/storage-partition`), `~/miniforge3`
-   (`/mnt/data/transfer`). Left:
-   - Cross-drive moves are done (2026-10-30): media, datasets, models, VMs, ISOs and course
-     videos live on `/mnt/data`, checksummed, and the originals are deleted. Both VMs boot
-     from `/mnt/data/vm`. `/mnt/projects/Model_Cache` is a compatibility link to
-     `/mnt/data/models` (era `cjm.yaml` files hard-code it). `/mnt/projects/Utility_CLI_Scripts`
-     can be archived. `/mnt/data` holds the only copy until `/mnt/backup` exists.
-   - Last, in one go: move `Projects/Utility_Projects/*` into `cj-mills/` with
-     `machine-setup`, and rename their `~/.claude/projects` folders (`christianjmills`
-     too). `protonmail-archive`'s conda env points at its current path.
-   - Pre-wipe sync: `/mnt/Storage` again (`~/Downloads` still points there); move
-     `~/cjm-dev-graph-private` and `~/.cjm` into the archive with links back; on the
-     clean install, `/mnt/SN850X_8TB_EXT4` becomes a plain folder of compatibility links
-     in the `mounts` role, not a bind mount. Verified on clean 26.04 in `ms-test`
-     (2026-10-31): with those links, a fresh Miniforge and only env
-     `cjm-transcript-correction-core` restored, both Qt apps show the real graph on
-     Wayland and X11. Their graph capability's Python lives in
-     `cjm-transcript-correction-core/runtime/envs/`, inside the archive; `.cjm/manifests`
-     and `.cjm/bin` must come along. The scratchpad resolves the symlink, so its live
-     transcript feed looks under `-mnt-projects-archive-cjm-era-*`; only matters for a
-     session running there.
-   - GitHub is done (2026-10-30): the 41 substrate-era `cjm-*` repos are private and
-     archived, and their PyPI releases stay up. Still public: `cjm-demucs-v4`,
-     `cjm-design-system`, the tutorial packages, and the 59 cjm repos outside that folder.
-   - `/mnt/backup` is live (BX500 #2, 2026-10-30): the weekly `backup-snapshot` timer is
-     on, and the first snapshot (543 GB) matches its sources by checksum. Remove
-     `Utility_Projects` from its `SOURCES` when those projects move. It stays in the
-     machine and isn't encrypted; off-site backup (NAS or cloud) is the known gap. BX500
-     #1 already matches `/mnt/archive` (129 GB `archive/invigo`).
-   - The old Windows partition and `/mnt/Storage` go with the Linux drive; the 100 GB ext4
-     partition is the disposable `testbed`; nothing on it is kept.
-   - Windows: Dev Drive at `P:` is live on the real machine and trusted (2026-10-31). Known
-     and accepted: Explorer opens `P:` at restart. Windows treats the attached VHDX as
-     removable (Explorer shows Eject), so AutoPlay's "Removable drive" choice is the likely
-     cause; not reproduced in the VM. `wsl --mount` worked read-only on the real machine
-     (`/mnt/data`, disk 4 that boot); Windows mounts rather than copies. Leftovers (user):
-     Start pins, VLC audio default.
-2. Linux dotfiles are in `home/`, verified on clean 26.04 (2026-10-31: full `bootstrap.sh`
-   and `chezmoi apply`, 33 checks, second apply changes nothing). `Utility_CLI_Scripts`
-   is now redundant. After the clean install: enable the SSH agent and CLI integration in
-   the 1Password app, then re-check Proton Drive for Linux. Monitor Reconnect Restore
-   needs its GNOME 50 port (own repo) to load on 26.04.
-3. Ubuntu 26.04 autoinstall config (LVM: 2 GB ESP, root ~2.5 TB, 64 GB swap, ~1 TB free),
-   then the Ubuntu clean install (back up `~/.claude`, `~/.cjm` and other state first; chezmoi
-   renders the `site-analytics-*`, `hf-write-token`, `pypirc` and `aws-*` 1Password
-   documents, all verified against the working files, and the `git-signing` SSH key is on
-   GitHub, 2026-10-31).
+1. Ubuntu 26.04 autoinstall config: not written yet. LVM on the Linux drive by serial
+   (2 GB ESP, root ~2.5 TB, 64 GB swap, ~1 TB free), hostname `innom-dt`, user `innom-dt`;
+   confirming the target is the only interactive step (`docs/design.md`, "Workstation
+   install flow"). Test a real install in a VM first.
+2. Code still needed for the install:
+   - `mounts` role: replace the `mounts_aliases` bind mount with a plain
+     `/mnt/SN850X_8TB_EXT4` folder of links: `Projects/GitHub/cj-mills` ->
+     `/mnt/projects/archive/cjm-era`, `claude-code-scratchpads` -> the same under
+     `archive/cjm-era`, `Model_Cache` -> `/mnt/data/models`.
+   - chezmoi: `~/.cache/huggingface` -> `/mnt/data/models/huggingface`, and links back for
+     `~/.cjm` and `~/cjm-dev-graph-private` (their tools hard-code those paths).
+   - Add BX500 #1 to `mounts_list` as `/mnt/archive` (ext4, UUID
+     `4fe5c6cb-514a-45e6-9fad-c0547df15b9a`).
+3. Final steps, in one sitting, right before the wipe:
+   - Move `Projects/Utility_Projects/*`, including this repo, into `/mnt/projects/cj-mills/`,
+     rename their `~/.claude/projects/` folders (`christianjmills` too), re-run
+     Monitor Reconnect Restore's `install.sh`, and fix `SOURCES` in `backup-snapshot`.
+     `protonmail-archive`'s conda env points at its current path.
+   - Copy `~/.claude`, `~/.claude.json`, `~/.bash_history` and `~/.local/share/backgrounds`
+     somewhere that's backed up. Move `~/cjm-dev-graph-private` (4 uncommitted changes) and
+     `~/.cjm` into `archive/cjm-era`.
+   - Re-sync `/mnt/Storage` to `archive/storage-partition`: `~/Downloads` still points there.
+     Excluded so far: Windows system items only.
+   - Decide about `~/cookies.txt` (plaintext; `inventory/workstation-review.md` lists it),
+     then re-run `scripts/snapshot-system.sh`, and take a final `backup-snapshot`.
+4. Clean install. Then: enable the SSH agent and CLI integration in the 1Password app, sign
+   in, `chezmoi apply` from a desktop terminal (GNOME settings need a session bus), test
+   commit signing and gTile in a real session, restore env
+   `cjm-transcript-correction-core` from `/mnt/data/transfer/miniforge3/envs/`, restore home
+   folders from `archive/storage-partition`, re-check Proton Drive for Linux (no official
+   sync client as of 2026-10; re-check), and pin the dock by hand.
 
 Later: Visual Studio + workloads (when a C++/Unreal project needs it; confirm
-`Microsoft.VisualStudio.DSC/VSComponents` IDs in the VM), Blender 5.2.3 bump (both platforms), convert the 860 EVO (`games`)
-and BX500s (`backup`, `archive`), Jetson and Pi roles.
+`Microsoft.VisualStudio.DSC/VSComponents` IDs in the VM), Blender 5.2.3 bump (both
+platforms), convert the 860 EVO (`games`), Jetson and Pi roles, off-site backup.
