@@ -36,6 +36,10 @@ extra_packages:
 #   self_managed  the package writes its own source file (same name) and keyring
 #                 on install; the verified definition only bootstraps the first
 #                 install, after which the vendor's file is left alone
+#   key_file      in place of `key_url`, for a vendor that publishes no key file: a
+#                 copy in roles/vendor_repos/files/, checked against `fingerprints` too
+#   vendor_source for a self-managed package that keeps an existing source and writes
+#                 its own beside it: that path, installed over ours at handover
 vendor_repos_list:
   - name: google-chrome
     key_url: https://dl.google.com/linux/linux_signing_key.pub
@@ -134,6 +138,19 @@ vendor_repos_list:
     architectures: [amd64, arm64]
     legacy_files: [/etc/apt/sources.list.d/claude-desktop.list]
     packages: [claude-desktop]
+
+  # The key is only published inside the package; this copy is exported from it.
+  - name: chatgpt
+    key_file: chatgpt.asc
+    key_format: asc
+    fingerprints: [3BFA0E4AE8B8CC16A2D9BA684A3B4A566C4660E4]
+    uris: https://persistent.oaistatic.com/codex-app-prod/linux/deb
+    suites: stable
+    components: main
+    architectures: amd64
+    self_managed: true
+    vendor_source: /var/lib/chatgpt/repository.sources
+    packages: [chatgpt]
 
   - name: typora
     key_url: https://downloads.typora.io/typora.gpg

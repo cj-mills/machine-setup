@@ -1,9 +1,17 @@
-# Host provides the driver and the container runtime hook only. CUDA toolkits
-# come from project environments (conda/pip wheels) or container images.
+# Host provides the driver, the container runtime hook and the GPU profiler only.
+# CUDA toolkits come from project environments (conda/pip wheels) or container images.
 
 - name: NVIDIA driver and container toolkit
   when: nvidia_gpu
   block:
+    # Before the driver, so the module's first load already has it.
+    - name: Allow GPU profiling without root
+      ansible.builtin.copy:
+        dest: /etc/modprobe.d/nvidia-profiling.conf
+        content: "options nvidia NVreg_RestrictProfilingToAdminUsers=0\n"
+        mode: "0644"
+      notify: Report reboot needed
+
     - name: Install NVIDIA driver (open kernel modules)
       ansible.builtin.apt:
         name:
@@ -11,6 +19,11 @@
           - "linux-modules-nvidia-{{ nvidia_driver_branch }}-open-{{ nvidia_kernel_flavour }}"
         state: present
       notify: Report reboot needed
+
+    - name: Install Nsight Compute
+      ansible.builtin.apt:
+        name: nsight-compute
+        state: present
 
     - name: Configure NVIDIA Container Toolkit repository
       ansible.builtin.include_role:

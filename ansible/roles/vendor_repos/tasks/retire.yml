@@ -1,6 +1,14 @@
 # For a self-managed repository whose packages are installed: remove the bootstrap
 # key once the vendor's own source file no longer references it.
 
+- name: "Install the vendor's own source — {{ vendor_repos_repo.name }}"
+  ansible.builtin.copy:
+    src: "{{ vendor_repos_repo.vendor_source }}"
+    dest: "/etc/apt/sources.list.d/{{ vendor_repos_repo.name }}.sources"
+    remote_src: true
+    mode: "0644"
+  when: vendor_repos_repo.vendor_source is defined
+
 - name: "Check which keyring the vendor's source uses — {{ vendor_repos_repo.name }}"
   ansible.builtin.command:
     argv: [grep, -rlF, "/etc/apt/keyrings/{{ vendor_repos_repo.name }}.{{ vendor_repos_repo.key_format }}", /etc/apt/sources.list.d]

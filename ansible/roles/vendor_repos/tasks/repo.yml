@@ -30,7 +30,15 @@
         - "{{ vendor_repos_key_staging_dir }}"
         - /etc/apt/keyrings
 
+    - name: "Copy the repository's signing key to staging — {{ vendor_repos_repo.name }}"
+      ansible.builtin.copy:
+        src: "{{ vendor_repos_repo.key_file }}"
+        dest: "{{ vendor_repos_key_staging_dir }}/{{ vendor_repos_repo.name }}.{{ vendor_repos_repo.key_format }}"
+        mode: "0644"
+      when: vendor_repos_repo.key_file is defined
+
     - name: "Download signing key to staging — {{ vendor_repos_repo.name }}"
+      when: vendor_repos_repo.key_file is not defined
       ansible.builtin.get_url:
         url: "{{ vendor_repos_repo.key_url }}"
         dest: "{{ vendor_repos_key_staging_dir }}/{{ vendor_repos_repo.name }}.{{ vendor_repos_repo.key_format }}"
