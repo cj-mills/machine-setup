@@ -117,6 +117,10 @@ if ! shopt -oq posix; then
   fi
 fi
 
+# mamba 2's hook warns in every shell unless this is set first. Outside the block below,
+# which 'conda init' rewrites.
+export MAMBA_ROOT_PREFIX="{{ .chezmoi.homeDir }}/miniforge3"
+
 # >>> conda initialize >>>
 # !! Contents within this block are managed by 'conda init' !!
 __conda_setup="$('{{ .chezmoi.homeDir }}/miniforge3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
