@@ -2,8 +2,9 @@
 
 Declarative setup for the user's machines (public repo `cj-mills/machine-setup`).
 Start with `README.md`; the decisions and their rationale live in `docs/design.md`
-(decision log, drive layout, package policy); `docs/windows-install.md` is the Windows
-install runbook; `inventory/*-review.md` hold the per-item keep/drop decisions.
+(decision log, drive layout, package policy); `docs/linux-install.md` and
+`docs/windows-install.md` are the install runbooks; `inventory/*-review.md` hold the
+per-item keep/drop decisions.
 
 ## Layout
 
@@ -15,11 +16,13 @@ install runbook; `inventory/*-review.md` hold the per-item keep/drop decisions.
   run `mise install` on mise-config changes. Workstation-only user timers
   (`claude-transcript-archive`, `site-analytics-pull`, `backup-snapshot`) are gated in
   `.chezmoiignore`.
+- `linux/`: `autoinstall.yaml` + `machine-setup/` (late-command.sh, first-boot.sh and its
+  service), packed into the stock ISO by `scripts/build-install-media.sh`.
 - `windows/`: `autounattend.xml` + `machine-setup/` (first-logon.ps1, ensure-own-esp.ps1,
   bootstrap.ps1, configuration.winget).
 - `scripts/`: snapshot-system.sh / snapshot-windows.ps1 (read-only inventories),
-  test-vm.sh, prepare-windows-disk.sh, prepare-data-disk.sh, esp-visibility.sh,
-  blender-pin.sh.
+  test-vm.sh, build-install-media.sh, prepare-windows-disk.sh, prepare-data-disk.sh,
+  esp-visibility.sh, blender-pin.sh.
 
 ## Working rules for this repo
 
@@ -54,6 +57,15 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
   The current `fresh-install` snapshot predates VM autologon: for `desktop-run` after a
   reboot, set Winlogon `AutoAdminLogon=1`, `DefaultUserName`, `DefaultPassword=''` over SSH.
   Windows' console output can vanish through `grep`: write to a file and `scp` it back.
+- `VM_NAME=ms-replica` (`VM_OS=replica` at `create`; SSH port 2224, user `innom-dt`): the
+  workstation, for testing `linux/` unchanged. Secure Boot, the Linux drive at its real size
+  and serial with the old install's partitions, the other drives with real serials and
+  filesystem UUIDs. Cycle: commit (first boot clones local commits), `test-media
+  <stock ISO>`, `install <vm dir>/install-media.iso`, `screenshot FILE` at the Ready to
+  install page, `click 1035 716`, `wait-off` (QEMU exits at the installer's reboot),
+  `check-drives`, `start`. Test password `machine-setup-test`. `destroy` and `create` give
+  the old layout back. `VM_TARGET_SERIAL=...` tests that another machine is refused. Don't
+  SSH in during first boot: a login starts a user session while packages are changing.
 
 ## Lessons (each cost a debugging round)
 
@@ -108,3 +120,13 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
 - A fresh Windows runs no PowerShell scripts (policy "Restricted"); the test harness's
   own `-ExecutionPolicy Bypass` was inherited by its payloads and hid this until the
   real install. Test the exact command the runbook gives, with nothing the harness adds.
+- Autoinstall on the desktop ISO: `interactive-sections: [storage]` makes the installer
+  ignore `storage:`. Without `autoinstall` on the kernel command line, a full autoinstall
+  stops at Ready to install, which shows the config file verbatim. `ID_SERIAL` ends in
+  `_1` on NVMe, so match with a trailing glob. The `kernel` key only adds: the image's own
+  HWE metapackages stay, so match the NVIDIA flavour to HWE rather than pinning GA.
+- systemd services have no `HOME`, which `set -u` scripts trip over. A fresh desktop has no
+  `curl` either, until `bootstrap.sh` installs it.
+- gnome-initial-setup needs two stamps in `~/.config`: `gnome-initial-setup-done` and
+  `gnome-initial-setup/upgrade-<version>-done`. With only the first it treats the account
+  as upgraded from an older release and runs anyway.
