@@ -9,8 +9,8 @@
   ansible.builtin.copy:
     dest: /etc/default/grub.d/90-machine-setup.cfg
     content: |
-      # Managed by machine-setup (ansible/roles/base, grub_cmdline_extra).
-      GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT {{ grub_cmdline_extra | join(' ') }}"
+      # Managed by machine-setup (ansible/roles/base, base_grub_cmdline_extra).
+      GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT {{ base_grub_cmdline_extra | join(' ') }}"
     mode: "0644"
-  when: grub_cmdline_extra | length > 0
+  when: base_grub_cmdline_extra | length > 0
   notify: Update GRUB

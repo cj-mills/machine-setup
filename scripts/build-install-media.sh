@@ -21,7 +21,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Kernel parameters for the installer itself, ahead of the `---` so the installer
 # doesn't carry them into the installed system, where Ansible manages them
-# (grub_cmdline_extra). The same NVMe setting applies while installing to those drives.
+# (base_grub_cmdline_extra). The same NVMe setting applies while installing to those drives.
 installer_params="nvme_core.default_ps_max_latency_us=0"
 
 die() { echo "error: $*" >&2; exit 1; }
