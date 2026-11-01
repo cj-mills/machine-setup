@@ -5,6 +5,10 @@
 # links to the previous snapshot, so they take no extra space. History is the point: a
 # plain mirror would copy an accidental deletion over the backup at the next run.
 #
+# One snapshot a day, so a timer catching up after boot can't add another. `--again` takes
+# a further one on the same day, as snapshots/YYYY-MM-DD-HHMMSS/, for a run that has to
+# include today's changes (e.g. right before reinstalling).
+#
 # Interim protection against a failed drive or a mistake.
 set -euo pipefail
 
@@ -41,6 +45,13 @@ prune() {
 }
 
 main() {
+  local again=false
+  case "${1:-}" in
+    "") ;;
+    --again) again=true ;;
+    *) echo "usage: backup-snapshot [--again]" >&2; exit 2 ;;
+  esac
+
   # Refuse without the drive: otherwise this would fill the root filesystem.
   mountpoint -q "$BACKUP_ROOT" || { echo "error: $BACKUP_ROOT is not mounted" >&2; exit 1; }
 
@@ -51,7 +62,10 @@ main() {
   # A first snapshot takes hours, so a run can overlap the timer; only one may use .partial.
   exec 9>"$BACKUP_ROOT/snapshots/.lock"
   flock -n 9 || { echo "error: another snapshot is running" >&2; exit 1; }
-  if [[ -e "$final" ]]; then echo "snapshot $today already exists"; exit 0; fi
+  if [[ -e "$final" ]]; then
+    "$again" || { echo "snapshot $today already exists"; exit 0; }
+    final+="-$(date +%H%M%S)"
+  fi
 
   previous="$(snapshots | tail -n 1)"
   for entry in "${SOURCES[@]}"; do
@@ -64,7 +78,7 @@ main() {
   # Only a complete snapshot gets a date; an interrupted run resumes from .partial.
   mv "$BACKUP_ROOT/snapshots/.partial" "$final"
   prune
-  echo "snapshot $today complete; $(snapshots | wc -l) kept, $(df -h --output=avail "$BACKUP_ROOT" | tail -n 1 | tr -d ' ') free"
+  echo "snapshot $(basename "$final") complete;$(snapshots | wc -l) kept, $(df -h --output=avail "$BACKUP_ROOT" | tail -n 1 | tr -d ' ') free"
 }
 
 main "$@"; exit
