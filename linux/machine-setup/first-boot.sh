@@ -12,7 +12,7 @@ unit=machine-setup-first-boot.service
 
 wait_for_network() {
   for _ in $(seq 1 60); do
-    curl -fsS --max-time 5 -o /dev/null https://github.com && return 0
+    timeout 5 bash -c '</dev/tcp/github.com/443' 2>/dev/null && return 0  # no curl yet
     sleep 5
   done
   echo "No connection to github.com."
@@ -27,7 +27,7 @@ converge() {
   if [[ -f /etc/machine-setup/first-boot.env ]]; then
     set -a; . /etc/machine-setup/first-boot.env; set +a
   fi
-  [[ "${MACHINE_SETUP_REPO:-}" == file://* ]] || wait_for_network || return 1
+  wait_for_network || return 1
   MACHINE_SETUP_USER="$user" /usr/local/lib/machine-setup/bootstrap.sh || return 1
   # The first-login wizard asks nothing this setup needs. It takes two stamps: with only
   # the first, it treats the account as upgraded from an older release and runs anyway.
