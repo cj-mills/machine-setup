@@ -23,7 +23,7 @@ on the test partition, not daily drivers.
 
 | Layer | Scope | Tool |
 |---|---|---|
-| 0. OS install | Partitioning, base install, first user | Ubuntu autoinstall (storage section interactive); L4T flash scripts; Pi image customisation; `autounattend.xml` (Windows, later) |
+| 0. OS install | Partitioning, base install, first user | Ubuntu autoinstall (`linux/`, confirmed on the installer's Ready to install page); L4T flash scripts; Pi image customisation; `autounattend.xml` (Windows, later) |
 | 1. System | Packages, repos, drivers, services, mounts, groups, system settings | Ansible |
 | 2. User | Dotfiles, shell, editor/terminal config, GNOME settings, secrets rendering | chezmoi |
 | 3. Bootstrap | Bare install → tools above runnable | `bootstrap.sh` (`bootstrap.ps1` for Windows) — the only imperative entry point |
@@ -74,11 +74,11 @@ Order: Windows is reinstalled on its own drive first, so the Linux drive can the
 wiped whole.
 
 1. Back up whatever in `~` isn't reproducible, then take a final `backup-snapshot`. Re-run `scripts/snapshot-system.sh` for a final inventory.
-2. Boot the 26.04 installer with the autoinstall config. Its storage section targets the Linux drive by serial and lays out the ESP and LVM pool from the drive-layout table; confirming that target is the only interactive step.
-3. Unattended: OS install → first boot → bootstrap runs the Ansible system layer, including data-drive mounts (no secrets needed).
+2. Boot the 26.04 installer from media built by `scripts/build-install-media.sh`. Its storage section targets the Linux drive by serial and lays out the ESP and LVM pool from the drive-layout table; pressing Install on the page that shows this config is the only interactive step, and on a machine without that serial the installer stops before it.
+3. Unattended: OS install → first boot → a service runs bootstrap as root, before the login screen, for the Ansible system layer including data-drive mounts (no secrets needed) → reboot into the finished system.
 4. Enable the SSH agent and CLI integration in the 1Password app and sign in, then run `chezmoi apply` from a desktop terminal for the user layer.
 
-Validated in a 26.04 VM before running on hardware.
+Runbook: `docs/linux-install.md`. Rehearsed on the replica VM before running on hardware.
 
 ## Drive layout (workstation)
 
@@ -144,6 +144,12 @@ those would be rework on retired code; the links go when the era's tools do.
 | 2026-10-31 | Windows reaches the Linux data drive by `wsl --mount` on demand, read-only, instead of keeping copies of datasets and model weights on `C:`. Tested on the real machine: `/mnt/data` mounted, and its images and videos opened from File Explorer through `\\wsl.localhost`. Only one OS runs at a time, so the drive is never shared live. Read-only because ext4 isn't Windows' own filesystem and nothing on the drive should change from there; work that writes uses `P:`. Disk numbers can change, and both 8 TB drives look alike, so check the contents after mounting. |
 | 2026-10-31 | The Linux user layer lives in `home/`: shell, git, personal scripts, VS Code and a curated list of GNOME settings, applied by script so app state stays out. Commits are signed with an SSH key held in 1Password, which can pause unattended agent commits until the app is unlocked; turning it off is one line. Credentials still needed (Hugging Face, PyPI, AWS) render from 1Password documents on the workstation only. Dock favorites stay manual. gTile is a pinned chezmoi external, our monitor extension links from its project on the data drive, and Smart Auto Move is dropped. Miniforge is a role pinned by checksum, conda environments stay with their projects. No Proton Drive on Linux yet: Proton has no sync client there; re-check later. |
 
+| 2026-10-31 | The Ubuntu install is a full autoinstall that stops at the desktop installer's Ready to install page, not an interactive storage section as first planned: the installer ignores `storage:` for an interactive section and offers its own screen, which can't express this layout (read from the 26.04.1 snap's subiquity and UI source). Without `autoinstall` on the kernel command line, that page shows the config itself and waits for Install, so the file opens by naming the drive it erases. The drive is matched by serial, so a machine without it stops with an error before that page; on the replica VM, a changed serial gave `matched no disk` and left all six disks byte-identical. |
+| 2026-10-31 | Install media is the stock ISO repacked with `xorriso`, not a config copied onto a stick: a stick written from an ISO is read-only, and repacking means the test VM boots the same image as the real machine. The login password's hash is made at build time and stays out of the repository; the image holds a salted SHA-512 crypt hash with raised rounds, which a strong password makes safe to keep on a stick. Rejected: a NoCloud `CIDATA` volume, which needs a second volume and differs between the test and the real boot. |
+| 2026-10-31 | First boot runs `bootstrap.sh` as root for a named user, before the login screen, instead of granting temporary passwordless sudo, which would leave a privilege window and possibly a stale file after a failure. It runs from a service rather than the installer's chroot because Docker, snaps and mounts need a running system. A failure stays on screen until answered (retry or skip) and the service runs again at each boot, so a walk-away install can't end at a login screen hiding a half-configured machine. |
+| 2026-10-31 | The workstation follows the HWE kernel track (`linux-generic-hwe-26.04`, NVIDIA modules for that flavour), as today. The desktop image ships it, and autoinstall's `kernel` key can only add a kernel: with a GA pin the HWE metapackages stayed installed, so GRUB would have moved to a kernel without NVIDIA modules at the first HWE release. |
+| 2026-10-31 | `scripts/test-vm.sh` gains a workstation replica (`VM_OS=replica`) so the install is tested unchanged: Secure Boot firmware, the Linux drive at its real size and serial with the old install's partitions, the other internal drives with their real serials and filesystem UUIDs, and media on a stick-sized USB disk. Access for tests comes from hooks on the media, as for Windows, so the config itself is identical. |
+
 ## Repository layout
 
 ```
@@ -152,6 +158,8 @@ scripts/converge-system.sh    run the Ansible system layer for this host
 scripts/snapshot-system.sh    read-only inventory of a running system
 scripts/test-vm.sh            disposable UEFI test VMs (Linux and Windows) for the fresh-install path
 scripts/prepare-windows-disk.sh, esp-visibility.sh   Windows drive preparation (docs/windows-install.md)
+scripts/build-install-media.sh   Ubuntu install media from the stock ISO (docs/linux-install.md)
+linux/                        Ubuntu layer: autoinstall config, first-boot service
 windows/                      Windows layer: answer file, first-sign-in scripts, WinGet Configuration
 ansible/                      system layer: site.yml, inventory/, roles/
 home/                         chezmoi source (.chezmoiroot), i.e. the user layer

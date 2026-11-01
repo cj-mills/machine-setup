@@ -43,6 +43,12 @@ scripts/converge-system.sh --check --diff
 Add the host (its short hostname) to `ansible/inventory/hosts.yml`, with any
 host-specific values in `ansible/inventory/host_vars/<host>.yml`.
 
+## Ubuntu workstation install
+
+`linux/` holds the autoinstall config and first-boot service, and
+`scripts/build-install-media.sh` turns the stock ISO into install media. Procedure:
+[docs/linux-install.md](docs/linux-install.md).
+
 ## Windows
 
 Windows is described by `windows/` (answer file, first-sign-in scripts and a WinGet

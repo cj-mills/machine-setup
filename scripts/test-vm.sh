@@ -191,7 +191,7 @@ start_tpm() {
 }
 
 # Replica: the Linux drive as the old install left it: the Windows partitions it used
-# to share, a mounted-style ext4 root, and a swap partition the live session may activate.
+# to share, an ext4 root, and a swap partition.
 create_replica_target() {
   local raw="$dir/disk.raw" sectors
   truncate -s "$target_bytes" "$raw"
@@ -456,6 +456,7 @@ main() {
         # live session makes its `writable` partition. Writes go to the overlay.
         rm -f "$dir/usb.qcow2"
         qemu-img create -q -f qcow2 -F raw -b "$(realpath "$media")" "$dir/usb.qcow2" 15G
+        rm -f "$dir/known_hosts"  # the install makes new host keys
         boot -display none -daemonize -no-reboot \
           -drive file="$dir/usb.qcow2",if=none,id=installer,format=qcow2 \
           -device usb-storage,drive=installer,removable=on,bootindex=1
@@ -581,6 +582,8 @@ EOF
       [[ -f "$dir/OVMF_VARS.$snap.fd" ]] || die "no snapshot named '$snap'"
       qemu-img snapshot -a "$snap" "$disk"
       cp "$dir/OVMF_VARS.$snap.fd" "$vars"
+      # Replica: host keys are made at first boot, so they can change across a restore.
+      if [[ "$os" == replica ]]; then rm -f "$dir/known_hosts"; fi
       if [[ -d "$dir/tpm.$snap" ]]; then rm -rf "$dir/tpm"; cp -r "$dir/tpm.$snap" "$dir/tpm"; fi
       echo "Restored snapshot '$snap'"
       ;;
