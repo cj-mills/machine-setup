@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Compile gTile's settings schema whenever its pin changes: the shell only reads the
+# compiled file, and the extensions.gnome.org zip ships just the source. Runs before the
+# GNOME settings script enables the extension.
+# pin hash: {{ include ".chezmoiexternal.toml" | sha256sum }}
+set -euo pipefail
+
+if ! command -v glib-compile-schemas >/dev/null 2>&1; then exit 0; fi
+glib-compile-schemas "$HOME/.local/share/gnome-shell/extensions/gTile@vibou/schemas"

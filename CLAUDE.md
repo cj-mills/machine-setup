@@ -135,3 +135,9 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
   once the VM goes idle (CPU and I/O of the QEMU process, from the host).
 - ChatGPT's package keeps an existing source and writes its own beside it, and publishes
   its key only inside the package: `key_file` and `vendor_source` in `vendor_repos`.
+- gTile's extensions.gnome.org zip has no compiled schema, so unpacked by chezmoi it stays in
+  `ERROR` until `glib-compile-schemas` runs, and `exact` on the external deletes the compiled
+  file. The shell never retries a failed extension (`ReloadExtension` is gone): it takes a
+  new login. To test one without logging out: `gnome-shell --headless --virtual-monitor
+  1280x720` under `dbus-run-session`, with its own `HOME` and a short `XDG_RUNTIME_DIR`
+  (a long path fails to create the Wayland socket).
