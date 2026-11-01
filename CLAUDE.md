@@ -130,3 +130,8 @@ Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
 - gnome-initial-setup needs two stamps in `~/.config`: `gnome-initial-setup-done` and
   `gnome-initial-setup/upgrade-<version>-done`. With only the first it treats the account
   as upgraded from an older release and runs anyway.
+- QEMU keeps a forwarded port open on the host while the guest is down, so a port check
+  can't see a VM reboot. For the replica's first boot, read `uptime` and the first-boot log
+  once the VM goes idle (CPU and I/O of the QEMU process, from the host).
+- ChatGPT's package keeps an existing source and writes its own beside it, and publishes
+  its key only inside the package: `key_file` and `vendor_source` in `vendor_repos`.
