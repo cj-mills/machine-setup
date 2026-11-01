@@ -106,8 +106,11 @@ resized.
 
 The Qt tools from the cjm-substrate era keep working from `archive/cjm-era` through
 compatibility links at their old paths, because their conda environment's editable
-installs and scripts hard-code `/mnt/SN850X_8TB_EXT4/Projects/GitHub/cj-mills`. Editing
-those would be rework on retired code; the links go when the era's tools do.
+installs and scripts hard-code `/mnt/SN850X_8TB_EXT4/Projects/GitHub/cj-mills`.
+Editing those would be rework on retired code; the links
+go when the era's tools do. `/mnt/SN850X_8TB_EXT4` is a plain folder holding only such
+links (`mounts_links`).
+`~/.cache/huggingface` is a chezmoi link to the model cache on `/mnt/data`.
 
 ## Decisions
 
@@ -149,6 +152,7 @@ those would be rework on retired code; the links go when the era's tools do.
 | 2026-10-31 | First boot runs `bootstrap.sh` as root for a named user, before the login screen, instead of granting temporary passwordless sudo, which would leave a privilege window and possibly a stale file after a failure. It runs from a service rather than the installer's chroot because Docker, snaps and mounts need a running system. A failure stays on screen until answered (retry or skip) and the service runs again at each boot, so a walk-away install can't end at a login screen hiding a half-configured machine. |
 | 2026-10-31 | The workstation follows the HWE kernel track (`linux-generic-hwe-26.04`, NVIDIA modules for that flavour), as today. The desktop image ships it, and autoinstall's `kernel` key can only add a kernel: with a GA pin the HWE metapackages stayed installed, so GRUB would have moved to a kernel without NVIDIA modules at the first HWE release. |
 | 2026-10-31 | `scripts/test-vm.sh` gains a workstation replica (`VM_OS=replica`) so the install is tested unchanged: Secure Boot firmware, the Linux drive at its real size and serial with the old install's partitions, the other internal drives with their real serials and filesystem UUIDs, and media on a stick-sized USB disk. Access for tests comes from hooks on the media, as for Windows, so the config itself is identical. |
+| 2026-10-31 | `/mnt/SN850X_8TB_EXT4` becomes a plain folder of links on the clean install, replacing the bind mount of the whole projects drive there. Only three paths under it are still hard-coded (`Projects/GitHub/cj-mills`, `claude-code-scratchpads`, `Model_Cache`), and everything else on the drive has moved to its new layout, so exposing the drive at the old path would only hide stale references. A symlink shows programs the resolved path, which the bind mount was chosen to avoid; that matters only for a session started inside `cjm-era`, and those are finished. |
 
 ## Repository layout
 
