@@ -22,10 +22,21 @@ mounts_list:
     fstype: ext4
     name: Backup
     mode: "0700"
+  - path: /mnt/archive
+    uuid: ARCHIVE_FS_UUID
+    fstype: ext4
+    name: Archive
+    mode: "0700"
 
-mounts_aliases:
-  - path: /mnt/SN850X_8TB_EXT4  # old projects path, still used by tools and session history
-    target: /mnt/projects
+# The old projects mount point, now a plain folder: the cjm-era tools hard-code paths
+# under it (docs/design.md, "Content layout").
+mounts_links:
+  - path: /mnt/SN850X_8TB_EXT4/Projects/GitHub/cj-mills
+    target: /mnt/projects/archive/cjm-era
+  - path: /mnt/SN850X_8TB_EXT4/claude-code-scratchpads
+    target: /mnt/projects/archive/cjm-era/claude-code-scratchpads
+  - path: /mnt/SN850X_8TB_EXT4/Model_Cache
+    target: /mnt/data/models
 
 # Test VMs (scripts/test-vm.sh) live on the data drive.
 test_vms_root: /mnt/data/vm

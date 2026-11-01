@@ -1,6 +1,7 @@
 {{ if ne .chezmoi.hostname "innom-dt" }}
 # Workstation only: these write to its data drives and need its credentials.
 .aws
+.cache/huggingface
 .config/site-analytics
 .config/systemd/user/backup-snapshot.*
 .config/systemd/user/claude-transcript-archive.*

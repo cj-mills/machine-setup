@@ -28,29 +28,24 @@
     state: absent_from_fstab
   loop: "{{ mounts_retired }}"
 
-- name: Define compatibility bind mounts in fstab
-  # A bind mount (unlike a symlink) keeps the old path as the path programs see,
-  # so tools that record their working directory behave exactly as before.
-  ansible.posix.mount:
-    path: "{{ item.path }}"
-    src: "{{ item.target }}"
-    fstype: none
-    opts: "bind,nofail,x-systemd.requires-mounts-for={{ item.target }}"
-    state: present
-  loop: "{{ mounts_aliases }}"
-  loop_control:
-    label: "{{ item.path }} -> {{ item.target }}"
+- name: Create parent directories of compatibility links
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ primary_user }}"
+    group: "{{ primary_user }}"
+    mode: "0755"
+  loop: "{{ mounts_links | map(attribute='path') | map('dirname') | unique }}"
 
-- name: Activate compatibility bind mounts not mounted yet
-  # A path still mounted some other way (e.g. directly from the device, before the
-  # first reboot) switches over to the bind mount at the next boot.
-  ansible.posix.mount:
+- name: Create compatibility links
+  ansible.builtin.file:
     path: "{{ item.path }}"
     src: "{{ item.target }}"
-    fstype: none
-    opts: "bind,nofail,x-systemd.requires-mounts-for={{ item.target }}"
-    state: mounted
-  loop: "{{ mounts_aliases }}"
+    state: link
+    follow: false
+    force: true  # the target may not exist yet
+    owner: "{{ primary_user }}"
+    group: "{{ primary_user }}"
+  loop: "{{ mounts_links }}"
   loop_control:
     label: "{{ item.path }} -> {{ item.target }}"
-  when: item.path not in (ansible_facts.mounts | map(attribute='mount') | list)
