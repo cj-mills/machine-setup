@@ -484,8 +484,8 @@ main() {
       require_vm
       ensure_test_hooks
       rm -f "$dir/install-media.iso"
-      # Password "machine-setup-test".
-      MACHINE_SETUP_PASSWORD_HASH="$(printf machine-setup-test | openssl passwd -6 -salt testvm -stdin)" \
+      # Password "machine-setup-test", hashed the way real media hashes it.
+      MACHINE_SETUP_PASSWORD_HASH="$(printf machine-setup-test | openssl passwd -6 -salt 'rounds=1000000$testvm' -stdin)" \
       MACHINE_SETUP_TEST_HOOKS="$dir/test-hooks" \
         "$repo_root/scripts/build-install-media.sh" build "$iso" "$dir/install-media.iso"
       ;;

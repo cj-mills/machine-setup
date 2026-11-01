@@ -29,8 +29,12 @@ converge() {
   fi
   [[ "${MACHINE_SETUP_REPO:-}" == file://* ]] || wait_for_network || return 1
   MACHINE_SETUP_USER="$user" /usr/local/lib/machine-setup/bootstrap.sh || return 1
-  # The first-login wizard asks nothing this setup needs.
-  runuser -u "$user" -- sh -c 'mkdir -p "$0/.config" && echo yes >"$0/.config/gnome-initial-setup-done"' \
+  # The first-login wizard asks nothing this setup needs. It takes two stamps: with only
+  # the first, it treats the account as upgraded from an older release and runs anyway.
+  runuser -u "$user" -- sh -c '. /etc/os-release
+    mkdir -p "$0/.config/gnome-initial-setup"
+    echo yes >"$0/.config/gnome-initial-setup-done"
+    touch "$0/.config/gnome-initial-setup/upgrade-$VERSION_ID-done"' \
     "$(getent passwd "$user" | cut -d: -f6)"
 }
 
