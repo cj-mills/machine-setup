@@ -4,8 +4,10 @@
 # on a new release with `ubuntu-drivers list`.
 nvidia_driver_branch: "595"
 # Kernel flavour the prebuilt modules must match: `generic` for the GA kernel,
-# `generic-hwe-<release>` when running the HWE kernel.
-nvidia_kernel_flavour: generic
+# `generic-hwe-<release>` when running the HWE kernel. The desktop image ships the HWE
+# track and linux/autoinstall.yaml installs it, so modules for `generic` would fall
+# behind the running kernel once HWE moves past the GA version.
+nvidia_kernel_flavour: generic-hwe-26.04
 
 nvidia_container_toolkit_repo:
   name: nvidia-container-toolkit

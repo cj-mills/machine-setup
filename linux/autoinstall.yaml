@@ -17,11 +17,10 @@ autoinstall:
   version: 1
   source:
     id: ubuntu-desktop-minimal
-  # GA kernel: the nvidia role installs prebuilt modules for flavour `generic`. The
-  # ISO's default tracks the HWE kernel, which would leave those modules behind once
-  # it moves past the GA version.
+  # The HWE track, which the desktop image ships anyway (this key can only add a kernel,
+  # not remove the image's). Must match nvidia_kernel_flavour in the nvidia role.
   kernel:
-    package: linux-generic
+    package: linux-generic-hwe-26.04
   locale: en_US.UTF-8
   keyboard:
     layout: us
