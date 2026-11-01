@@ -10,20 +10,33 @@
 
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/../ansible"
-host="$(hostname -s)"
+# Everything below runs inside main(), which bash parses completely before running:
+# editing this file while a previous invocation is still running must not change what
+# that invocation does next.
+main() {
+  cd "$(dirname "${BASH_SOURCE[0]}")/../ansible"
+  host="$(hostname -s)"
 
-if ! ansible-inventory --host "$host" >/dev/null 2>&1; then
-  echo "Host '$host' is not in ansible/inventory/hosts.yml — add it before converging." >&2
-  exit 1
-fi
+  if ! ansible-inventory --host "$host" >/dev/null 2>&1; then
+    echo "Host '$host' is not in ansible/inventory/hosts.yml — add it before converging." >&2
+    exit 1
+  fi
 
-# Repo-local collections (see collections_path in ansible.cfg), so the root run
-# uses exactly what was installed here.
-ansible-galaxy collection install -r requirements.yml -p collections >/dev/null
+  # Repo-local collections (see collections_path in ansible.cfg), so the root run
+  # uses exactly what was installed here. They stay the repository owner's: an
+  # autoinstall's first boot runs this script as root, later converges as that user.
+  owner="$(stat -c %U .)"
+  as_owner=()
+  if [[ $EUID -eq 0 && "$owner" != root ]]; then
+    as_owner=(runuser -u "$owner" -- env HOME="$(getent passwd "$owner" | cut -d: -f6)")
+  fi
+  "${as_owner[@]}" ansible-galaxy collection install -r requirements.yml -p collections >/dev/null
 
-if [[ $EUID -eq 0 ]]; then
-  exec ansible-playbook site.yml --limit "$host" "$@"
-else
-  exec sudo ansible-playbook site.yml --limit "$host" "$@"
-fi
+  if [[ $EUID -eq 0 ]]; then
+    exec ansible-playbook site.yml --limit "$host" "$@"
+  else
+    exec sudo ansible-playbook site.yml --limit "$host" "$@"
+  fi
+}
+
+main "$@"; exit

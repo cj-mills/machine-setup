@@ -4,3 +4,13 @@
     state: present
     update_cache: true
     cache_valid_time: 3600
+
+- name: Set extra kernel parameters
+  ansible.builtin.copy:
+    dest: /etc/default/grub.d/90-machine-setup.cfg
+    content: |
+      # Managed by machine-setup (ansible/roles/base, grub_cmdline_extra).
+      GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT {{ grub_cmdline_extra | join(' ') }}"
+    mode: "0644"
+  when: grub_cmdline_extra | length > 0
+  notify: Update GRUB

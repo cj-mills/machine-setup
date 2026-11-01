@@ -1,0 +1,2 @@
+# Kernel parameters added to the GRUB default; hosts set this in host_vars.
+grub_cmdline_extra: []

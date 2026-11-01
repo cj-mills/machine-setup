@@ -1,0 +1,23 @@
+# Converges the system layer once, on the first boot after an autoinstall, before
+# anything can log in. first-boot.sh disables this unit when it succeeds.
+[Unit]
+Description=machine-setup first-boot converge
+Wants=network-online.target snapd.seeded.service
+After=network-online.target snapd.seeded.service plymouth-start.service
+# Owns tty1 and apt until it's done.
+Before=gdm.service display-manager.service getty@tty1.service
+Before=apt-daily.service apt-daily-upgrade.service unattended-upgrades.service
+Conflicts=getty@tty1.service
+
+[Service]
+Type=oneshot
+ExecStartPre=-/usr/bin/plymouth quit
+ExecStart=/usr/local/lib/machine-setup/first-boot.sh
+TTYPath=/dev/tty1
+TTYReset=yes
+StandardInput=tty
+StandardOutput=tty
+StandardError=tty
+
+[Install]
+WantedBy=multi-user.target

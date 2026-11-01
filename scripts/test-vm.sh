@@ -5,7 +5,8 @@
 # Usage:
 #   scripts/test-vm.sh create             create the VM (disks, UEFI variables, SSH key)
 #   scripts/test-vm.sh install MEDIA      boot the installer (window); MEDIA is an ISO, or
-#                                         for Windows a USB-stick image (.qcow2/.img)
+#                                         for Windows a USB-stick image (.qcow2/.img);
+#                                         replica: headless, see below
 #   scripts/test-vm.sh run                boot the installed system (window, foreground)
 #   scripts/test-vm.sh start              boot headless in the background
 #   scripts/test-vm.sh stop               shut the guest down cleanly (over SSH) and wait
@@ -18,9 +19,16 @@
 #   scripts/test-vm.sh list               list snapshots
 #   scripts/test-vm.sh data-disk SIZE     Linux: add a blank second disk
 #                                         (guest: /dev/disk/by-id/virtio-ms-test-data)
+#   scripts/test-vm.sh test-media ISO     replica: build the install media from a stock ISO
+#   scripts/test-vm.sh screenshot FILE    replica: save the screen as a PNG
+#   scripts/test-vm.sh send-keys KEY...   replica: press keys (QEMU key names, e.g. ret tab)
+#   scripts/test-vm.sh click X Y          replica: click at screen coordinates
+#   scripts/test-vm.sh wait-off [SECONDS] replica: wait for the VM to power off or reset
+#   scripts/test-vm.sh check-drives       replica: compare the other drives with their
+#                                         checksums from `create`
 #   scripts/test-vm.sh destroy            delete the VM
 #
-# Each VM records its OS at creation (VM_OS=linux, the default, or windows):
+# Each VM records its OS at creation (VM_OS=linux, the default, windows or replica):
 #
 #   Linux:   the repository is shared read-only over 9p, so local commits can be
 #            tested before they are pushed:
@@ -38,8 +46,19 @@
 #            (autounattend.xml + machine-setup\) plus a test-only hook enabling SSH
 #            with this VM's dedicated key.
 #
+#   Replica: the workstation, for testing the real autoinstall (linux/) unchanged:
+#            Secure Boot firmware, the Linux drive at its real size and serial with the
+#            old install's partitions, and the other internal drives (small, with their
+#            real serials and filesystem UUIDs, holding a canary file). Install media
+#            boots from a stick-sized USB disk. `install` is headless and leaves the VM
+#            at the installer; drive it with screenshot, click and send-keys. QEMU exits
+#            at the installer's reboot, so check-drives can run before first boot.
+#            SSH, passwordless sudo and cloning from local commits come from test hooks
+#            on the media, never on real media. VM_TARGET_SERIAL overrides the Linux
+#            drive's serial, to test that the install refuses another machine.
+#
 # Settings (environment): VM_NAME, VM_OS, VM_DIR, VM_USER, VM_DISK_SIZE, VM_MEM,
-# VM_CPUS, VM_SSH_PORT, VM_DECOY.
+# VM_CPUS, VM_SSH_PORT, VM_DECOY, VM_TARGET_SERIAL.
 
 set -euo pipefail
 
@@ -53,7 +72,8 @@ os="$(cat "$dir/os" 2>/dev/null || echo "${VM_OS:-linux}")"
 case "$os" in
   linux)   default_user=tester;   default_port=2222 ;;
   windows) default_user=innom-dt; default_port=2223 ;;
-  *) echo "error: unknown VM_OS '$os' (linux or windows)" >&2; exit 1 ;;
+  replica) default_user=innom-dt; default_port=2224 ;;
+  *) echo "error: unknown VM_OS '$os' (linux, windows or replica)" >&2; exit 1 ;;
 esac
 vm_user="${VM_USER:-$default_user}"
 ssh_port="${VM_SSH_PORT:-$default_port}"
@@ -64,8 +84,22 @@ decoy_disk="$dir/decoy.raw"   # Windows: disk with a Linux-style ESP, attached f
 vars="$dir/OVMF_VARS.fd"
 pidfile="$dir/qemu.pid"
 ssh_key="$dir/ssh_key"
+qmp_socket="$dir/qmp.sock"
 
-if [[ "$os" == windows ]]; then
+# Replica: the Linux drive, at its exact size (the real one reports 7814037168 sectors)...
+target_serial=LINUX_DRIVE_SERIAL
+target_bytes=$((7814037168 * 512))
+# ...and the other internal drives: name, bus, serial, size, then for data drives the
+# filesystem UUID and label (host_vars/innom-dt.yml, so the mounts role finds them).
+replica_drives=(
+  "windows  nvme WINDOWS_DRIVE_SERIAL 2G"
+  "projects nvme PROJECTS_DRIVE_SERIAL    2G PROJECTS_FS_UUID projects"
+  "data     nvme DATA_DRIVE_SERIAL    2G DATA_FS_UUID data"
+  "backup   sata BACKUP_DRIVE_SERIAL    1G BACKUP_FS_UUID backup"
+  "archive  sata ARCHIVE_DRIVE_SERIAL    1G ARCHIVE_FS_UUID archive"
+)
+
+if [[ "$os" != linux ]]; then
   ovmf_code=/usr/share/OVMF/OVMF_CODE_4M.ms.fd
   ovmf_vars_template=/usr/share/OVMF/OVMF_VARS_4M.ms.fd
 else
@@ -156,6 +190,110 @@ start_tpm() {
   die "swtpm did not start (see $dir/swtpm.log)"
 }
 
+# Replica: the Linux drive as the old install left it: the Windows partitions it used
+# to share, a mounted-style ext4 root, and a swap partition the live session may activate.
+create_replica_target() {
+  local raw="$dir/disk.raw" sectors
+  truncate -s "$target_bytes" "$raw"
+  sgdisk "${replica_old_partitions[@]}" "$raw" >/dev/null
+  start_of() { sgdisk -i "$1" "$raw" | awk '/First sector/ {print $3}'; }
+  sectors="$(start_of 2)"
+  mkfs.vfat -F 32 -n ESP --offset "$sectors" "$raw" $((100 * 1024)) >/dev/null
+  sectors="$(start_of 6)"
+  mke2fs -q -F -t ext4 -E offset=$((sectors * 512)) "$raw" 1G
+  sectors="$(start_of 8)"
+  truncate -s 1M "$dir/swap.raw"
+  mkswap -q -L linux-swap "$dir/swap.raw"
+  dd if="$dir/swap.raw" of="$raw" bs=1M seek=$((sectors * 512)) oflag=seek_bytes conv=notrunc status=none
+  rm -f "$dir/swap.raw"
+  qemu-img convert -q -O qcow2 "$raw" "$disk"
+  rm -f "$raw"
+}
+
+# Replica: the other drives, as raw files so they can be checksummed.
+create_replica_drives() {
+  local row name bus serial size uuid label
+  mkdir -p "$dir/canary"
+  echo "canary: this drive must survive the install" >"$dir/canary/canary.txt"
+  for row in "${replica_drives[@]}"; do
+    read -r name bus serial size uuid label <<<"$row"
+    truncate -s "$size" "$dir/drive-$name.raw"
+    if [[ -n "$uuid" ]]; then
+      mke2fs -q -F -t ext4 -m 0 -U "$uuid" -L "$label" -d "$dir/canary" "$dir/drive-$name.raw"
+    else
+      # The Windows drive: its own ESP and an NTFS-typed partition.
+      sgdisk -n 1:0:+200M -t 1:ef00 -n 2:0:0 -t 2:0700 "$dir/drive-$name.raw" >/dev/null
+      mkfs.vfat -F 32 --offset 2048 "$dir/drive-$name.raw" $((200 * 1024)) >/dev/null
+    fi
+  done
+  (cd "$dir" && sha256sum drive-*.raw) >"$dir/drives.sha256"
+}
+
+# Replica: test hooks for the install media (run by linux/machine-setup/late-command.sh
+# in the installer, the new system at /target). Test VM only, never on real media.
+ensure_test_hooks() {
+  ensure_key
+  local hooks="$dir/test-hooks"
+  mkdir -p "$hooks"
+  cp "$ssh_key.pub" "$hooks/ssh_key.pub"
+  cat >"$hooks/10-test-access.sh" <<HOOK
+#!/bin/sh
+# Test VM only: SSH with the VM's dedicated key, passwordless sudo, and first boot
+# cloning local commits from the 9p share. Runs in the installer.
+set -eu
+here="\$(dirname "\$0")"
+target=/target
+curtin in-target --target="\$target" -- apt-get install -y openssh-server
+install -d "\$target/etc/ssh/test-vm" "\$target/etc/machine-setup" "\$target/mnt/machine-setup"
+install -m 644 "\$here/ssh_key.pub" "\$target/etc/ssh/test-vm/authorized_keys"
+echo 'AuthorizedKeysFile .ssh/authorized_keys /etc/ssh/test-vm/authorized_keys' \\
+  >"\$target/etc/ssh/sshd_config.d/10-test-vm.conf"
+echo '$vm_user ALL=(ALL) NOPASSWD:ALL' >"\$target/etc/sudoers.d/90-test-vm"
+chmod 440 "\$target/etc/sudoers.d/90-test-vm"
+echo 'machine-setup /mnt/machine-setup 9p trans=virtio,version=9p2000.L,ro,nofail 0 0' >>"\$target/etc/fstab"
+echo 'MACHINE_SETUP_REPO=file:///mnt/machine-setup' >"\$target/etc/machine-setup/first-boot.env"
+HOOK
+}
+
+# Replica: run QMP commands (one JSON object each) in the VM's monitor.
+qmp() {
+  command -v socat >/dev/null || die "socat not found (apt install socat)"
+  { echo '{"execute":"qmp_capabilities"}'; printf '%s\n' "$@"; sleep 0.5; } \
+    | socat -t2 - UNIX-CONNECT:"$qmp_socket" | grep '"error"' && die "QMP command failed"
+  return 0
+}
+
+boot_replica() {
+  local drives=() row drive bus serial size rest port=0
+  for row in "${replica_drives[@]}"; do
+    read -r drive bus serial size rest <<<"$row"
+    drives+=(-drive file="$dir/drive-$drive.raw",if=none,id="$drive",format=raw)
+    if [[ "$bus" == nvme ]]; then
+      drives+=(-device nvme,drive="$drive",serial="$serial")
+    else
+      drives+=(-device ide-hd,drive="$drive",bus=ide.$port,serial="$serial")
+      port=$((port + 1))
+    fi
+  done
+  ensure_key
+  qemu-system-x86_64 \
+    -name "$name" \
+    -machine q35,smm=on,accel=kvm \
+    -global driver=cfi.pflash01,property=secure,value=on \
+    -cpu host -smp "${VM_CPUS:-8}" -m "${VM_MEM:-16G}" \
+    -drive if=pflash,format=raw,unit=0,readonly=on,file="$ovmf_code" \
+    -drive if=pflash,format=raw,unit=1,file="$vars" \
+    -drive file="$disk",if=none,id=target,format=qcow2,discard=unmap \
+    -device nvme,drive=target,serial="${VM_TARGET_SERIAL:-$target_serial}" \
+    "${drives[@]}" \
+    -nic user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:"$ssh_port"-:22 \
+    -device virtio-vga -device qemu-xhci -device usb-tablet -device usb-kbd \
+    -virtfs local,path="$repo_root",mount_tag=machine-setup,security_model=none,readonly=on \
+    -qmp unix:"$qmp_socket",server=on,wait=off \
+    -pidfile "$pidfile" \
+    "$@"
+}
+
 boot_linux() {
   ensure_share
   qemu-system-x86_64 \
@@ -203,7 +341,11 @@ boot_windows() {
 boot() {
   require_vm
   is_running && die "VM is already running (pid $(cat "$pidfile"))"
-  if [[ "$os" == windows ]]; then boot_windows "$@"; else boot_linux "$@"; fi
+  case "$os" in
+    windows) boot_windows "$@" ;;
+    replica) boot_replica "$@" ;;
+    *) boot_linux "$@" ;;
+  esac
 }
 
 # Windows guests have no `sudo`; shut down with the native command.
@@ -285,7 +427,10 @@ main() {
       [[ -r "$ovmf_code" && -r "$ovmf_vars_template" ]] || die "OVMF firmware not found (apt install ovmf)"
       [[ -w /dev/kvm ]] || die "/dev/kvm is not writable by $(id -un) (add yourself to the kvm group)"
       mkdir -p "$dir"
-      if [[ "$os" == windows ]]; then
+      if [[ "$os" == replica ]]; then
+        create_replica_target
+        create_replica_drives
+      elif [[ "$os" == windows ]]; then
         command -v swtpm >/dev/null || die "swtpm not found (apt install swtpm swtpm-tools)"
         # Target disk, laid out exactly as the real Windows drive will be.
         truncate -s "${VM_DISK_SIZE:-128G}" "$dir/disk.raw"
@@ -306,7 +451,16 @@ main() {
       ;;
     install)
       media="${1:-}"; [[ -f "$media" ]] || die "usage: $0 install MEDIA"
-      if [[ "$os" == windows ]]; then
+      if [[ "$os" == replica ]]; then
+        # A USB disk of the real stick's size: the image with room behind it, where the
+        # live session makes its `writable` partition. Writes go to the overlay.
+        rm -f "$dir/usb.qcow2"
+        qemu-img create -q -f qcow2 -F raw -b "$(realpath "$media")" "$dir/usb.qcow2" 15G
+        boot -display none -daemonize -no-reboot \
+          -drive file="$dir/usb.qcow2",if=none,id=installer,format=qcow2 \
+          -device usb-storage,drive=installer,removable=on,bootindex=1
+        echo "Installer booting headless; use screenshot, click and send-keys"
+      elif [[ "$os" == windows ]]; then
         ensure_answer_media
         case "$media" in
           *.iso) installer=(-drive file="$media",media=cdrom,readonly=on) ;;
@@ -323,6 +477,50 @@ main() {
       else
         boot -display gtk -drive file="$media",media=cdrom,readonly=on
       fi
+      ;;
+    test-media)
+      iso="${1:-}"; [[ -f "$iso" ]] || die "usage: $0 test-media STOCK_ISO"
+      [[ "$os" == replica ]] || die "test-media is for replica VMs"
+      require_vm
+      ensure_test_hooks
+      rm -f "$dir/install-media.iso"
+      # Password "machine-setup-test".
+      MACHINE_SETUP_PASSWORD_HASH="$(printf machine-setup-test | openssl passwd -6 -salt testvm -stdin)" \
+      MACHINE_SETUP_TEST_HOOKS="$dir/test-hooks" \
+        "$repo_root/scripts/build-install-media.sh" build "$iso" "$dir/install-media.iso"
+      ;;
+    screenshot)
+      out="${1:-}"; [[ -n "$out" ]] || die "usage: $0 screenshot FILE"
+      is_running || die "VM is not running"
+      qmp "{\"execute\":\"screendump\",\"arguments\":{\"filename\":\"$(realpath -m "$out")\",\"format\":\"png\"}}"
+      ;;
+    send-keys)
+      [[ $# -gt 0 ]] || die "usage: $0 send-keys KEY..."
+      is_running || die "VM is not running"
+      for key in "$@"; do
+        qmp "{\"execute\":\"send-key\",\"arguments\":{\"keys\":[{\"type\":\"qcode\",\"data\":\"$key\"}]}}"
+      done
+      ;;
+    click)
+      x="${1:-}"; y="${2:-}"; [[ -n "$x" && -n "$y" ]] || die "usage: $0 click X Y"
+      is_running || die "VM is not running"
+      # The tablet takes coordinates in 0..32767 across the screen; 1280x800 unless told.
+      ax=$((x * 32767 / ${VM_SCREEN_W:-1280})); ay=$((y * 32767 / ${VM_SCREEN_H:-800}))
+      move="{\"type\":\"abs\",\"data\":{\"axis\":\"x\",\"value\":$ax}},{\"type\":\"abs\",\"data\":{\"axis\":\"y\",\"value\":$ay}}"
+      button() { echo "{\"execute\":\"input-send-event\",\"arguments\":{\"events\":[$move,{\"type\":\"btn\",\"data\":{\"down\":$1,\"button\":\"left\"}}]}}"; }
+      qmp "$(button true)" "$(button false)"
+      ;;
+    wait-off)
+      for _ in $(seq 1 $(( ${1:-3600} / 5 ))); do
+        is_running || { echo "VM is off"; exit 0; }
+        sleep 5
+      done
+      die "VM still running after ${1:-3600} s"
+      ;;
+    check-drives)
+      [[ -f "$dir/drives.sha256" ]] || die "no drive checksums in $dir"
+      require_stopped
+      (cd "$dir" && sha256sum --check drives.sha256)
       ;;
     run)
       boot -display gtk
@@ -357,7 +555,7 @@ main() {
       ;;
     ssh-setup)
       require_vm
-      [[ "$os" == linux ]] || die "Windows VMs enable SSH automatically during install (test hook)"
+      [[ "$os" == linux ]] || die "this VM enables SSH automatically during install (test hook)"
       ensure_share
       cat <<'EOF'
 Boot the VM with `run`, then in a terminal inside the guest (as the test user):

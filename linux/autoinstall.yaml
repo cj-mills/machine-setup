@@ -1,0 +1,118 @@
+# ===========================================================================
+#  THIS ERASES ONE DRIVE: Samsung 990 PRO 4TB, serial @LINUX_DRIVE_SERIAL@
+#  (the Linux drive of innom-dt). Every other drive is left alone.
+#  On a machine without that serial, the installer stops before this page.
+#  Press Install only if this is the machine and the drive you mean.
+# ===========================================================================
+#
+# Ubuntu 26.04 desktop install for the workstation, layout from docs/design.md
+# ("Drive layout"). scripts/build-install-media.sh puts this at the root of the
+# installation medium, filling in the password hash, so the installer picks it up
+# without any boot option. With no `autoinstall` on the kernel command line it stops
+# at the page showing this file, which is the one human step of the install.
+#
+# Storage can't be an interactive section: the installer then ignores `storage:`
+# and offers its own screen, which can't express this layout.
+autoinstall:
+  version: 1
+  source:
+    id: ubuntu-desktop-minimal
+  # GA kernel: the nvidia role installs prebuilt modules for flavour `generic`. The
+  # ISO's default tracks the HWE kernel, which would leave those modules behind once
+  # it moves past the GA version.
+  kernel:
+    package: linux-generic
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+  timezone: America/Los_Angeles
+  identity:
+    hostname: innom-dt
+    realname: innom-dt
+    username: innom-dt
+    password: '@PASSWORD_HASH@'
+  codecs:
+    install: true
+  # The nvidia role owns the driver; the installer's choice would differ from it.
+  drivers:
+    install: false
+  oem:
+    install: false
+  storage:
+    swap:
+      size: 0  # the swap volume below replaces the default swap file
+    config:
+      - id: linux-drive
+        type: disk
+        # ID_SERIAL ends in a namespace suffix (`..._1`), hence the trailing glob.
+        match:
+          serial: '*@LINUX_DRIVE_SERIAL@*'
+        ptable: gpt
+        wipe: superblock-recursive
+        preserve: false
+      - id: esp
+        type: partition
+        device: linux-drive
+        number: 1
+        size: 2G
+        flag: boot
+        grub_device: true
+        wipe: superblock
+        preserve: false
+      - id: pool
+        type: partition
+        device: linux-drive
+        number: 2
+        size: -1
+        wipe: superblock
+        preserve: false
+      - id: vg-linux
+        type: lvm_volgroup
+        name: linux
+        devices: [pool]
+        preserve: false
+      # What's left of the pool (about 1 TiB) stays free for growth and test OSes.
+      - id: lv-root
+        type: lvm_partition
+        name: root
+        volgroup: vg-linux
+        size: 2560G
+        wipe: superblock
+        preserve: false
+      - id: lv-swap
+        type: lvm_partition
+        name: swap
+        volgroup: vg-linux
+        size: 64G
+        wipe: superblock
+        preserve: false
+      - id: fs-esp
+        type: format
+        volume: esp
+        fstype: fat32
+        preserve: false
+      - id: fs-root
+        type: format
+        volume: lv-root
+        fstype: ext4
+        preserve: false
+      - id: fs-swap
+        type: format
+        volume: lv-swap
+        fstype: swap
+        preserve: false
+      - id: mount-root
+        type: mount
+        device: fs-root
+        path: /
+      - id: mount-esp
+        type: mount
+        device: fs-esp
+        path: /boot/efi
+      - id: mount-swap
+        type: mount
+        device: fs-swap
+        path: none
+  late-commands:
+    - sh /cdrom/machine-setup/late-command.sh
+  shutdown: reboot

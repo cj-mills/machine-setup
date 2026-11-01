@@ -1,6 +1,11 @@
 primary_user: innom-dt
 nvidia_gpu: true
 
+# Keeps NVMe drives out of low-power states. Set by hand on the 24.04 install; whether
+# these drives still need it isn't known, and a desktop loses nothing by keeping it.
+grub_cmdline_extra:
+  - nvme_core.default_ps_max_latency_us=0
+
 # Internal data drives (see docs/design.md, drive layout).
 mounts_list:
   - path: /mnt/projects
