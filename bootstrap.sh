@@ -30,7 +30,7 @@ as_user() {
 # that invocation does next.
 main() {
   user="$(id -un)"
-  home="$HOME"
+  home="${HOME:-}"  # unset in the first-boot service
   if [[ $EUID -eq 0 ]]; then
     user="${MACHINE_SETUP_USER:-}"
     if [[ -z "$user" || "$user" == root ]]; then
