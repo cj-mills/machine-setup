@@ -89,15 +89,17 @@ qmp_socket="$dir/qmp.sock"
 # Replica: the workstation's drives. Their serials, sizes and filesystem UUIDs are the
 # machine's own facts, kept outside this public repository: workstation.env in the
 # private directory (docs/design.md, "Drive layout") sets linux_drive_serial and
-# linux_drive_sectors (the Linux drive, at its exact size) and replica_drives (the other
-# internal drives: name, bus, serial, size, then for data drives the filesystem UUID and
-# label, so the mounts role finds them).
+# linux_drive_sectors (the Linux drive, at its exact size), replica_old_* (its partitions
+# as the old install left them) and replica_drives (the other internal drives: name, bus,
+# serial, size, then for data drives the filesystem UUID and label, so the mounts role
+# finds them).
 private="${MACHINE_SETUP_PRIVATE:-/mnt/projects/hub/environment/machine-setup}"
 load_replica_facts() {
   [[ -f "$private/workstation.env" ]] || die "no $private/workstation.env (set MACHINE_SETUP_PRIVATE)"
   # shellcheck source=/dev/null
   . "$private/workstation.env"
-  [[ -n "${linux_drive_serial:-}" && -n "${linux_drive_sectors:-}" && ${#replica_drives[@]} -gt 0 ]] \
+  [[ -n "${linux_drive_serial:-}" && -n "${linux_drive_sectors:-}" && ${#replica_drives[@]} -gt 0 \
+     && ${#replica_old_partitions[@]} -gt 0 && -n "${replica_old_esp:-}${replica_old_root:-}${replica_old_swap:-}" ]] \
     || die "$private/workstation.env lacks the replica's drives"
   target_serial="$linux_drive_serial"
   target_bytes=$((linux_drive_sectors * 512))
@@ -194,18 +196,18 @@ start_tpm() {
   die "swtpm did not start (see $dir/swtpm.log)"
 }
 
-# Replica: the Linux drive as the old install left it: the Windows partitions it used
-# to share, an ext4 root, and a swap partition.
+# Replica: the Linux drive as the old install left it (workstation.env: its partition
+# table as sgdisk arguments, and which partitions were the ESP, an ext4 root and swap).
 create_replica_target() {
   local raw="$dir/disk.raw" sectors
   truncate -s "$target_bytes" "$raw"
   sgdisk "${replica_old_partitions[@]}" "$raw" >/dev/null
   start_of() { sgdisk -i "$1" "$raw" | awk '/First sector/ {print $3}'; }
-  sectors="$(start_of 2)"
+  sectors="$(start_of "$replica_old_esp")"
   mkfs.vfat -F 32 -n ESP --offset "$sectors" "$raw" $((100 * 1024)) >/dev/null
-  sectors="$(start_of 6)"
+  sectors="$(start_of "$replica_old_root")"
   mke2fs -q -F -t ext4 -E offset=$((sectors * 512)) "$raw" 1G
-  sectors="$(start_of 8)"
+  sectors="$(start_of "$replica_old_swap")"
   truncate -s 1M "$dir/swap.raw"
   mkswap -q -L linux-swap "$dir/swap.raw"
   dd if="$dir/swap.raw" of="$raw" bs=1M seek=$((sectors * 512)) oflag=seek_bytes conv=notrunc status=none

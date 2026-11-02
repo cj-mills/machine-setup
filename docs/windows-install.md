@@ -2,9 +2,9 @@
 
 Fresh Windows 11 Pro on its own drive (Samsung 990 PRO 4TB), next to the Linux drive
 (also a 990 PRO 4TB). Their serials, which the `/dev/disk/by-id/` paths below need, are in
-the private `workstation.env` (`docs/design.md`, "Drive layout"). Everything here was rehearsed in the
-test VM (`VM_NAME=ms-win scripts/test-vm.sh`), whose "decoy" disk stands in for the
-Linux drive. Background and decisions: `docs/design.md`.
+the private `workstation.env` (`docs/design.md`, "Drive layout"). Everything here was
+rehearsed in the test VM (`VM_NAME=ms-win scripts/test-vm.sh`), whose "decoy" disk stands
+in for the Linux drive. Background and decisions: `docs/design.md`.
 
 **Both 990 PROs are 4 TB.** On Windows Setup's disk page, the Windows drive is the one
 showing a single **Unallocated Space** entry and no partitions; the Linux drive shows

@@ -2,9 +2,9 @@
 
 Fresh Ubuntu 26.04 on the Linux drive (Samsung 990 PRO 4TB). This erases that drive and
 nothing else: the install media name it by its serial, which is with the machine's other
-facts in the private directory (`docs/design.md`, "Drive layout"). Everything here was rehearsed on the replica VM
-(`VM_NAME=ms-replica VM_OS=replica scripts/test-vm.sh`), which has the same drive sizes,
-serials and filesystem UUIDs. Background and decisions: `docs/design.md`.
+facts in the private directory (`docs/design.md`, "Drive layout"). Everything here was
+rehearsed on the replica VM (`VM_NAME=ms-replica VM_OS=replica scripts/test-vm.sh`),
+which has the same drive sizes, serials and filesystem UUIDs. Background and decisions: `docs/design.md`.
 
 Before starting, back up whatever in `~` isn't reproducible and take a final
 `backup-snapshot` (`docs/design.md`, "Workstation install flow"), and push `main`: first
