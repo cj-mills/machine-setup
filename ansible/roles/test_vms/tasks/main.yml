@@ -1,6 +1,8 @@
-- name: Install the test VM tools
+# xorriso builds install media (scripts/build-install-media.sh, real and replica);
+# socat drives the replica's QEMU monitor.
+- name: Install the test VM and install media tools
   ansible.builtin.apt:
-    name: [qemu-system-x86, qemu-utils, ovmf, swtpm, swtpm-tools]
+    name: [qemu-system-x86, qemu-utils, ovmf, swtpm, swtpm-tools, xorriso, socat]
     state: present
     update_cache: true
     cache_valid_time: 3600
