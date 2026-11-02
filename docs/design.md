@@ -97,8 +97,9 @@ from `host_vars`.
 ## Content layout (workstation)
 
 Content is sorted by how it behaves, which also decides what gets backed up. The layout
-itself is kept with the owner's private workspace notes; the folders `backup-snapshot`
-copies are its `SOURCES` list (`home/dot_local/bin/executable_backup-snapshot`).
+itself is kept with the owner's private workspace notes, as is what `backup-snapshot`
+copies: it reads `~/.config/backup-snapshot/`, which chezmoi links there on the
+workstation (`docs/decisions/2026-11-02-backup-policy-in-config.md`).
 
 On Windows, `C:` keeps apps, game libraries and default user folders, and a Dev Drive at
 `P:` holds work, using the same names as Linux: `P:\cj-mills`, `P:\upstream`, `P:\scratch`,

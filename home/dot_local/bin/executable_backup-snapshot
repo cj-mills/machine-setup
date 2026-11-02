@@ -9,25 +9,32 @@
 # a further one on the same day, as snapshots/YYYY-MM-DD-HHMMSS/, for a run that has to
 # include today's changes (e.g. right before reinstalling).
 #
+# What to copy is the machine's own policy, so it lives outside this script, in
+# $CONFIG/sources: one line per source, `source|path inside a snapshot|filter`, where the
+# optional filter is a file in $CONFIG of rsync filter rules (see "FILTER RULES" in
+# rsync(1)). Blank lines and lines starting with # are skipped.
+#
 # Interim protection against a failed drive or a mistake.
 set -euo pipefail
 
 BACKUP_ROOT=/mnt/backup
 KEEP=8
-
-# source|path inside a snapshot (docs/design.md, content layout)
-SOURCES=(
-  # The owner's list of what to copy (private; later read from config).
-)
+CONFIG="${BACKUP_SNAPSHOT_CONFIG:-$HOME/.config/backup-snapshot}"
 
 snapshots() {  # dated snapshot directories, oldest first
   find "$BACKUP_ROOT/snapshots" -mindepth 1 -maxdepth 1 -type d -name '20[0-9][0-9]-*' | sort
 }
 
-copy() {  # source, relative path, previous snapshot (may be empty)
-  local src="$1" rel="$2" previous="$3" partial="$BACKUP_ROOT/snapshots/.partial"
-  local opts=(-aH --delete) code=0
-  [[ -n "$previous" ]] && opts+=("--link-dest=$previous/$rel")
+sources() {  # the source lines of $CONFIG/sources
+  grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$CONFIG/sources"
+}
+
+copy() {  # source, relative path, filter file (may be empty), previous snapshot (may be empty)
+  local src="$1" rel="$2" filter="$3" previous="$4" partial="$BACKUP_ROOT/snapshots/.partial"
+  # --delete-excluded: a run resumed from .partial drops what the filter now excludes.
+  local opts=(-aH --delete --delete-excluded) code=0
+  [[ -n "$filter" ]] && opts+=("--filter=merge $CONFIG/$filter")
+  [[ -n "$previous" && -d "$previous/$rel" ]] && opts+=("--link-dest=$previous/$rel")
   mkdir -p "$partial/$rel"
   rsync "${opts[@]}" "$src/" "$partial/$rel/" || code=$?
   # 24: files vanished during the copy, normal for live data.
@@ -52,10 +59,18 @@ main() {
     *) echo "usage: backup-snapshot [--again]" >&2; exit 2 ;;
   esac
 
+  local today final previous entry src rel filter entries
+
   # Refuse without the drive: otherwise this would fill the root filesystem.
   mountpoint -q "$BACKUP_ROOT" || { echo "error: $BACKUP_ROOT is not mounted" >&2; exit 1; }
+  [[ -r "$CONFIG/sources" ]] || { echo "error: $CONFIG/sources is missing" >&2; exit 1; }
+  mapfile -t entries < <(sources)
+  for entry in "${entries[@]}"; do
+    IFS='|' read -r src rel filter <<< "$entry"
+    [[ -d "$src" ]] || { echo "error: source $src is missing" >&2; exit 1; }
+    [[ -z "$filter" || -r "$CONFIG/$filter" ]] || { echo "error: filter $CONFIG/$filter is missing" >&2; exit 1; }
+  done
 
-  local today final previous entry src rel
   today="$(date +%F)"
   final="$BACKUP_ROOT/snapshots/$today"
   mkdir -p "$BACKUP_ROOT/snapshots"
@@ -68,10 +83,9 @@ main() {
   fi
 
   previous="$(snapshots | tail -n 1)"
-  for entry in "${SOURCES[@]}"; do
-    IFS='|' read -r src rel <<< "$entry"
-    [[ -d "$src" ]] || { echo "error: source $src is missing" >&2; exit 1; }
-    copy "$src" "$rel" "$previous"
+  for entry in "${entries[@]}"; do
+    IFS='|' read -r src rel filter <<< "$entry"
+    copy "$src" "$rel" "$filter" "$previous"
     echo "copied $rel"
   done
 
