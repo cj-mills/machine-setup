@@ -1,10 +1,14 @@
 # machine-setup: notes for Claude
 
 Declarative setup for the user's machines (public repo `cj-mills/machine-setup`).
-Start with `README.md`; the decisions and their rationale live in `docs/design.md`
-(decision log, drive layout, package policy); `docs/linux-install.md` and
+Start with `README.md`. The design lives in `docs/design.md`, and each decision with its
+rationale in its own file in `docs/decisions/`; `docs/linux-install.md` and
 `docs/windows-install.md` are the install runbooks; `inventory/*-review.md` hold the
 per-item keep/drop decisions.
+
+Status, open work and the machine's own facts (drives, backups, what was installed by
+hand) are not kept here: this repo is public. On the workstation they are in
+`/mnt/projects/hub/projects/machine-setup.md` and `/mnt/projects/hub/environment/`.
 
 ## Layout
 
