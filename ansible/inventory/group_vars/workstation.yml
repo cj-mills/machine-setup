@@ -196,6 +196,12 @@ release_debs:
     version: 1.8.25
     url: https://github.com/quarto-dev/quarto-cli/releases/download/v1.8.25/quarto-1.8.25-linux-amd64.deb
     sha256: 48819e4ded06998faa3d36c3d90c91249f1a00dba05183710b6011ce9e1b3c04
+  # Checked against the vendor's signed checksum list and PGP key (fingerprint on its
+  # downloads page). The filename names the Ubuntu release, so bump it on an OS upgrade too.
+  - name: veracrypt
+    version: 1.26.30
+    url: https://github.com/veracrypt/VeraCrypt/releases/download/VeraCrypt_1.26.30/veracrypt-1.26.30-Ubuntu-26.04-amd64.deb
+    sha256: 8cce5f76b7b388a84da1fa1f654c13ea278153dd0012fcad5a317f62374a2b9a
 
 flatpak_apps:
   - org.videolan.VLC

@@ -157,6 +157,7 @@ links (`mounts_links`).
 | 2026-11-01 | Nsight Compute comes from Ubuntu's archive (`nsight-compute`, 2024.1 on 26.04), with its profiling option in the `nvidia` role, replacing a hand install in `/usr/local` and the older 2022.4 package beside it. Rejected: NVIDIA's CUDA apt repo (2026.3), a second source of NVIDIA packages next to a driver from Ubuntu's archive, for a tool used occasionally. |
 | 2026-11-01 | Dropped from the `/etc` audit: the `bwrap` AppArmor profile (a failed experiment; `bwrap` runs on clean 26.04 without it), `fs.inotify.max_user_watches=524288` (the kernel scales this default with RAM, so on this machine the line should only lower it), and the NodeSource apt pins, which went with the repository. Covered already: the `lfs` filter in `/etc/gitconfig` comes from the `git-lfs` package, PIA writes its own routing tables, and there were no printers, polkit rules or sudoers changes. |
 | 2026-11-01 | `backup-snapshot --again` takes a further snapshot on the same day, as `YYYY-MM-DD-HHMMSS`. One-a-day stays the default so a timer catching up after boot adds nothing, but that made a pre-wipe run on a timer day a silent no-op. |
+| 2026-11-01 | VeraCrypt comes from the vendor's release `.deb` for Ubuntu 26.04 in `release_debs`, pinned by SHA-256 after checking the signed checksum list and the PGP key's fingerprint. There's no vendor apt repository, and a third-party PPA would add a trust root for an encryption tool. |
 
 ## Repository layout
 
