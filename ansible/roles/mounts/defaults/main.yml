@@ -11,6 +11,11 @@
 #                        (default: primary_user, primary_user, 0755)
 mounts_list: []
 
+# True for a host whose mounts_list comes from the private inventory overlay
+# (scripts/converge-system.sh): the role then stops if the list is empty, rather than
+# converging that machine without its drives.
+mounts_private: false
+
 # Compatibility links at old paths, for tools that hard-code them. Each: path (old),
 # target. Parent directories are created; the target may not exist yet.
 mounts_links: []

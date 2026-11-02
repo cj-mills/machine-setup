@@ -86,18 +86,22 @@ pidfile="$dir/qemu.pid"
 ssh_key="$dir/ssh_key"
 qmp_socket="$dir/qmp.sock"
 
-# Replica: the Linux drive, at its exact size (the real one reports 7814037168 sectors)...
-target_serial=LINUX_DRIVE_SERIAL
-target_bytes=$((7814037168 * 512))
-# ...and the other internal drives: name, bus, serial, size, then for data drives the
-# filesystem UUID and label (host_vars/innom-dt.yml, so the mounts role finds them).
-replica_drives=(
-  "windows  nvme WINDOWS_DRIVE_SERIAL 2G"
-  "projects nvme PROJECTS_DRIVE_SERIAL    2G PROJECTS_FS_UUID projects"
-  "data     nvme DATA_DRIVE_SERIAL    2G DATA_FS_UUID data"
-  "backup   sata BACKUP_DRIVE_SERIAL    1G BACKUP_FS_UUID backup"
-  "archive  sata ARCHIVE_DRIVE_SERIAL    1G ARCHIVE_FS_UUID archive"
-)
+# Replica: the workstation's drives. Their serials, sizes and filesystem UUIDs are the
+# machine's own facts, kept outside this public repository: workstation.env in the
+# private directory (docs/design.md, "Drive layout") sets linux_drive_serial and
+# linux_drive_sectors (the Linux drive, at its exact size) and replica_drives (the other
+# internal drives: name, bus, serial, size, then for data drives the filesystem UUID and
+# label, so the mounts role finds them).
+private="${MACHINE_SETUP_PRIVATE:-/mnt/projects/hub/environment/machine-setup}"
+load_replica_facts() {
+  [[ -f "$private/workstation.env" ]] || die "no $private/workstation.env (set MACHINE_SETUP_PRIVATE)"
+  # shellcheck source=/dev/null
+  . "$private/workstation.env"
+  [[ -n "${linux_drive_serial:-}" && -n "${linux_drive_sectors:-}" && ${#replica_drives[@]} -gt 0 ]] \
+    || die "$private/workstation.env lacks the replica's drives"
+  target_serial="$linux_drive_serial"
+  target_bytes=$((linux_drive_sectors * 512))
+}
 
 if [[ "$os" != linux ]]; then
   ovmf_code=/usr/share/OVMF/OVMF_CODE_4M.ms.fd
@@ -421,6 +425,7 @@ guest_ssh() {
 # foreground) must not change what that invocation does next.
 main() {
   cmd="${1:-}"; shift || true
+  [[ "$os" == replica ]] && load_replica_facts
   case "$cmd" in
     create)
       [[ -e "$disk" ]] && die "VM already exists at $dir"

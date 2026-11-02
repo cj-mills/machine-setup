@@ -22,6 +22,19 @@ main() {
     exit 1
   fi
 
+  # The machine's own facts (e.g. its drives' UUIDs) aren't in this public repository:
+  # they come from a private inventory overlay, the first of MACHINE_SETUP_PRIVATE, the
+  # hub on the workstation, and the copy that install media leave in /etc.
+  inventory=(-i inventory/hosts.yml)
+  for private in ${MACHINE_SETUP_PRIVATE:+"$MACHINE_SETUP_PRIVATE"} \
+      /mnt/projects/hub/environment/machine-setup /etc/machine-setup; do
+    if [[ -d "$private/inventory" ]]; then
+      inventory+=(-i "$private/inventory")
+      echo "Private inventory: $private/inventory"
+      break
+    fi
+  done
+
   # Repo-local collections (see collections_path in ansible.cfg), so the root run
   # uses exactly what was installed here. They stay the repository owner's: an
   # autoinstall's first boot runs this script as root, later converges as that user.
@@ -33,9 +46,9 @@ main() {
   "${as_owner[@]}" ansible-galaxy collection install -r requirements.yml -p collections >/dev/null
 
   if [[ $EUID -eq 0 ]]; then
-    exec ansible-playbook site.yml --limit "$host" "$@"
+    exec ansible-playbook "${inventory[@]}" site.yml --limit "$host" "$@"
   else
-    exec sudo ansible-playbook site.yml --limit "$host" "$@"
+    exec sudo ansible-playbook "${inventory[@]}" site.yml --limit "$host" "$@"
   fi
 }
 

@@ -13,6 +13,15 @@ install -m 644 "$here/machine-setup-first-boot.service" "$target/etc/systemd/sys
 ln -sf ../machine-setup-first-boot.service \
   "$target/etc/systemd/system/multi-user.target.wants/machine-setup-first-boot.service"
 
+# The private inventory overlay (the machine's own facts, e.g. its drives' UUIDs), which
+# scripts/build-install-media.sh adds to the media: the first boot converges with it,
+# before the drive holding its source is mounted. Root only.
+install -d -m 755 "$target/etc/machine-setup"
+rm -rf "$target/etc/machine-setup/inventory"
+cp -r "$here/inventory" "$target/etc/machine-setup/inventory"
+chown -R root:root "$target/etc/machine-setup/inventory"
+chmod -R go= "$target/etc/machine-setup/inventory"
+
 # Present on test VM media only; see scripts/test-vm.sh.
 for hook in "$here"/test-hooks/*.sh; do
   if [ -f "$hook" ]; then sh "$hook"; fi

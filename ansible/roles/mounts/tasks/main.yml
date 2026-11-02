@@ -1,3 +1,13 @@
+- name: Require the private inventory for hosts whose drives are kept there
+  ansible.builtin.assert:
+    that: mounts_list | length > 0
+    fail_msg: >-
+      {{ inventory_hostname }}'s mounts come from the private inventory overlay, which
+      scripts/converge-system.sh didn't find (MACHINE_SETUP_PRIVATE, the hub, or
+      /etc/machine-setup/inventory).
+    quiet: true
+  when: mounts_private
+
 - name: Mount data filesystems
   ansible.posix.mount:
     path: "{{ item.path }}"

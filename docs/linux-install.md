@@ -1,7 +1,8 @@
 # Ubuntu install runbook (workstation)
 
-Fresh Ubuntu 26.04 on the Linux drive (Samsung 990 PRO 4TB). This erases
-that drive and nothing else. Everything here was rehearsed on the replica VM
+Fresh Ubuntu 26.04 on the Linux drive (Samsung 990 PRO 4TB). This erases that drive and
+nothing else: the install media name it by its serial, which is with the machine's other
+facts in the private directory (`docs/design.md`, "Drive layout"). Everything here was rehearsed on the replica VM
 (`VM_NAME=ms-replica VM_OS=replica scripts/test-vm.sh`), which has the same drive sizes,
 serials and filesystem UUIDs. Background and decisions: `docs/design.md`.
 
@@ -19,7 +20,9 @@ scripts/build-install-media.sh build /mnt/data/vm/isos/ubuntu-26.04.1-desktop-am
 ```
 
 It asks for the login password of the new install. Only a salted hash goes into the image,
-which stays out of the repository, and you can change the password after installing.
+which stays out of the repository, and you can change the password after installing. The
+drive's serial and the private inventory overlay come from `MACHINE_SETUP_PRIVATE`
+(default: the hub).
 
 Then write it. This erases the stick, after showing what's on it and asking you to type its
 name back:

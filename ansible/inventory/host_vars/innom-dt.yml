@@ -6,30 +6,13 @@ nvidia_gpu: true
 base_grub_cmdline_extra:
   - nvme_core.default_ps_max_latency_us=0
 
-# Internal data drives (see docs/design.md, drive layout).
-mounts_list:
-  - path: /mnt/projects
-    uuid: PROJECTS_FS_UUID
-    fstype: ext4
-    name: Projects
-    mode: "0700"
-  - path: /mnt/data
-    uuid: DATA_FS_UUID
-    fstype: ext4
-    name: Data
-  - path: /mnt/backup
-    uuid: BACKUP_FS_UUID  # set by prepare-data-disk.sh
-    fstype: ext4
-    name: Backup
-    mode: "0700"
-  - path: /mnt/archive
-    uuid: ARCHIVE_FS_UUID
-    fstype: ext4
-    name: Archive
-    mode: "0700"
+# Internal data drives: their UUIDs are the machine's own facts, kept in the private
+# inventory overlay (scripts/converge-system.sh), not here. The mounts role stops if
+# the overlay wasn't found.
+mounts_private: true
 
 # The old projects mount point, now a plain folder: the cjm-era tools hard-code paths
-# under it (docs/design.md, "Content layout").
+# under it.
 mounts_links:
   - path: /mnt/SN850X_8TB_EXT4/Projects/GitHub/cj-mills
     target: /mnt/projects/archive/cjm-era

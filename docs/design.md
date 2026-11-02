@@ -74,7 +74,7 @@ Order: Windows is reinstalled on its own drive first, so the Linux drive can the
 wiped whole.
 
 1. Back up whatever in `~` isn't reproducible, then take a final `backup-snapshot`. Re-run `scripts/snapshot-system.sh` for a final inventory.
-2. Boot the 26.04 installer from media built by `scripts/build-install-media.sh`. Its storage section targets the Linux drive by serial and lays out the ESP and LVM pool from the drive-layout table; pressing Install on the page that shows this config is the only interactive step, and on a machine without that serial the installer stops before it.
+2. Boot the 26.04 installer from media built by `scripts/build-install-media.sh`. Its storage section targets the Linux drive by serial and lays out the ESP and LVM pool; pressing Install on the page that shows this config is the only interactive step, and on a machine without that serial the installer stops before it.
 3. Unattended: OS install → first boot → a service runs bootstrap as root, before the login screen, for the Ansible system layer including data-drive mounts (no secrets needed) → reboot into the finished system.
 4. Enable the SSH agent and CLI integration in the 1Password app and sign in, then run `chezmoi apply` from a desktop terminal for the user layer.
 
@@ -87,12 +87,18 @@ paths, so paths survive a drive replacement. Drives are addressed in commands by
 `/dev/disk/by-id/…` (serial-based): kernel `nvmeN` names change between boots.
 
 The workstation's drive inventory is kept with the owner's private workspace notes,
-outside this repository. Mount paths and UUIDs are in
-`ansible/inventory/host_vars/innom-dt.yml`.
+outside this repository, and so are the facts the code needs: the Linux drive's serial
+and the data drives' UUIDs. They live in a private directory (`MACHINE_SETUP_PRIVATE`;
+on the workstation, in the hub) holding `workstation.env`, read by
+`scripts/build-install-media.sh` and the replica VM, and `inventory/`, an Ansible
+inventory overlay that `scripts/converge-system.sh` adds to `ansible/inventory/`. Install
+media carry a copy of the overlay to `/etc/machine-setup/inventory`, for the first boot,
+before the hub's drive is mounted
+(`docs/decisions/2026-11-02-machine-facts-outside-repo.md`).
 
 Data-drive filesystems use no root reservation (`-m 0`) and GPT type "Linux
 filesystem" (`scripts/prepare-data-disk.sh`). Mounts are managed by the `mounts` role
-from `host_vars`.
+from `mounts_list`, which for the workstation comes from the private overlay.
 
 ## Content layout (workstation)
 
@@ -108,10 +114,9 @@ resized.
 
 The Qt tools from the cjm-substrate era keep working from `archive/cjm-era` through
 compatibility links at their old paths, because their conda environment's editable
-installs and scripts hard-code `/mnt/SN850X_8TB_EXT4/Projects/GitHub/cj-mills`.
-Editing those would be rework on retired code; the links
-go when the era's tools do. `/mnt/SN850X_8TB_EXT4` is a plain folder holding only such
-links (`mounts_links`).
+installs and scripts hard-code `/mnt/SN850X_8TB_EXT4/Projects/GitHub/cj-mills`. Editing
+those would be rework on retired code; the links go when the era's tools do.
+`/mnt/SN850X_8TB_EXT4` is a plain folder holding only such links (`mounts_links`).
 `~/.cache/huggingface` is a chezmoi link to the model cache on `/mnt/data`.
 
 ## Decisions
@@ -135,6 +140,6 @@ windows/                      Windows layer: answer file, first-sign-in scripts,
 ansible/                      system layer: site.yml, inventory/, roles/
 home/                         chezmoi source (.chezmoiroot), i.e. the user layer
   .chezmoiscripts/            hooks: re-converge on ansible/ change, `mise install` on mise config change
-inventory/                    curated review of what each machine should have (raw/ is git-ignored)
+inventory/raw/                read-only system snapshots (git-ignored: personal data)
 docs/                         design and decisions
 ```

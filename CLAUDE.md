@@ -3,12 +3,15 @@
 Declarative setup for the user's machines (public repo `cj-mills/machine-setup`).
 Start with `README.md`. The design lives in `docs/design.md`, and each decision with its
 rationale in its own file in `docs/decisions/`; `docs/linux-install.md` and
-`docs/windows-install.md` are the install runbooks; `inventory/*-review.md` hold the
-per-item keep/drop decisions.
+`docs/windows-install.md` are the install runbooks.
 
 Status, open work and the machine's own facts (drives, backups, what was installed by
 hand) are not kept here: this repo is public. On the workstation they are in
-`/mnt/projects/hub/projects/machine-setup.md` and `/mnt/projects/hub/environment/`.
+`/mnt/projects/hub/projects/machine-setup.md` and `/mnt/projects/hub/environment/`. The
+facts the code needs (the Linux drive's serial, the data drives' UUIDs, the replica's
+drives) and the per-item keep/drop reviews of each machine are in
+`/mnt/projects/hub/environment/machine-setup/` (`MACHINE_SETUP_PRIVATE`; see
+`docs/design.md`, "Drive layout").
 
 ## Layout
 
@@ -30,7 +33,9 @@ hand) are not kept here: this repo is public. On the workstation they are in
 
 ## Working rules for this repo
 
-- Public repo: never commit secrets or `inventory/raw/` (git-ignored; personal data).
+- Public repo: never commit secrets or `inventory/raw/` (git-ignored; personal data), nor
+  the machine's own facts such as drive serials and UUIDs: they go in the private
+  directory (`MACHINE_SETUP_PRIVATE`).
 - Commit locally as work progresses; push only when the user says so.
 - Anything that erases or retypes disks: the user runs it (needs sudo). Address disks by
   `/dev/disk/by-id/...` only: kernel `nvmeN` names change between boots.

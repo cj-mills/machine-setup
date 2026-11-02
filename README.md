@@ -41,7 +41,10 @@ scripts/converge-system.sh --check --diff
 ## Adding a machine
 
 Add the host (its short hostname) to `ansible/inventory/hosts.yml`, with any
-host-specific values in `ansible/inventory/host_vars/<host>.yml`.
+host-specific values in `ansible/inventory/host_vars/<host>.yml`. Facts that identify the
+machine itself, such as its drives' serials and UUIDs, go in a private inventory overlay
+instead, which `scripts/converge-system.sh` adds when it finds one
+(`MACHINE_SETUP_PRIVATE/inventory`; see `docs/design.md`, "Drive layout").
 
 ## Ubuntu workstation install
 

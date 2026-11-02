@@ -1,7 +1,8 @@
 # Windows install runbook (workstation)
 
-Fresh Windows 11 Pro on its own drive (Samsung 990 PRO 4TB), next to
-the Linux drive (990 PRO 4TB). Everything here was rehearsed in the
+Fresh Windows 11 Pro on its own drive (Samsung 990 PRO 4TB), next to the Linux drive
+(also a 990 PRO 4TB). Their serials, which the `/dev/disk/by-id/` paths below need, are in
+the private `workstation.env` (`docs/design.md`, "Drive layout"). Everything here was rehearsed in the
 test VM (`VM_NAME=ms-win scripts/test-vm.sh`), whose "decoy" disk stands in for the
 Linux drive. Background and decisions: `docs/design.md`.
 
@@ -109,10 +110,10 @@ sudo scripts/esp-visibility.sh show /dev/disk/by-id/nvme-Samsung_SSD_990_PRO_4TB
 
 If Linux won't boot while the ESP is hidden, show it from Windows instead
 (elevated `diskpart`; the Linux drive's disk number is in `list disk`, its ESP is
-partition 2):
+partition 1 in the layout `linux/autoinstall.yaml` creates):
 
 ```
 select disk <N>
-select partition 2
+select partition 1
 set id=c12a7328-f81f-11d2-ba4b-00a0c93ec93b
 ```

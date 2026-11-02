@@ -1,5 +1,5 @@
-# Desktop workstation (Ubuntu LTS, x86_64). Item-level decisions live in
-# inventory/workstation-review.md; this file is their declarative form.
+# Desktop workstation (Ubuntu LTS, x86_64). The item-level review behind this list is
+# kept with the owner's private notes; this file is its declarative form.
 
 extra_packages:
   - xclip

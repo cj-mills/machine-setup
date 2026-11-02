@@ -1,7 +1,8 @@
 # yaml-language-server: $schema=https://aka.ms/configuration-dsc-schema/0.2
 #
 # Windows workstation configuration (WinGet Configuration, schema 0.2).
-# Decisions and rationale: inventory/windows-review.md and docs/design.md.
+# Decisions and rationale: docs/decisions/ (the item-level review is kept with the
+# owner's private notes).
 #
 # Apply from an elevated terminal:
 #   winget configure -f C:\machine-setup\configuration.winget

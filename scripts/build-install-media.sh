@@ -9,6 +9,9 @@
 #       Asks for the login password; only its hash goes into OUTPUT_ISO, which stays out
 #       of the repository (the repository is public). MACHINE_SETUP_PASSWORD_HASH replaces
 #       the prompt; MACHINE_SETUP_TEST_HOOKS adds a directory of test hooks (test VMs).
+#       The machine's own facts come from the private directory MACHINE_SETUP_PRIVATE
+#       (default: the hub on the workstation): workstation.env names the drive to erase,
+#       and inventory/ goes onto the media for the first boot's converge.
 #   sudo scripts/build-install-media.sh write OUTPUT_ISO /dev/disk/by-id/usb-...
 #       Erases the stick, writes the image, and reads it back to verify. Only after
 #       typing the stick's name back. An image file works too (tests).
@@ -18,6 +21,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+private="${MACHINE_SETUP_PRIVATE:-/mnt/projects/hub/environment/machine-setup}"
 
 # Kernel parameters for the installer itself, ahead of the `---` so the installer
 # doesn't carry them into the installed system, where Ansible manages them
@@ -51,11 +55,20 @@ build() {
   chmod u+w "$work"/*
   grep -q ' 26\.04' "$work/info" || die "$source is not an Ubuntu 26.04 image"
 
+  [[ -f "$private/workstation.env" && -d "$private/inventory" ]] \
+    || die "no workstation.env and inventory/ in $private (set MACHINE_SETUP_PRIVATE)"
+  # shellcheck source=/dev/null
+  . "$private/workstation.env"
+  [[ "${linux_drive_serial:-}" =~ ^[A-Za-z0-9_-]+$ ]] \
+    || die "linux_drive_serial missing or malformed in $private/workstation.env"
+
   hash="${MACHINE_SETUP_PASSWORD_HASH:-}"
   [[ -n "$hash" ]] || hash="$(hash_password)"
   [[ "$hash" == '$6$'* ]] || die "the password hash must be SHA-512 crypt"
   config="$(<"$repo_root/linux/autoinstall.yaml")"
-  [[ "$config" == *@PASSWORD_HASH@* ]] || die "no password placeholder in linux/autoinstall.yaml"
+  [[ "$config" == *@PASSWORD_HASH@* && "$config" == *@LINUX_DRIVE_SERIAL@* ]] \
+    || die "placeholders missing from linux/autoinstall.yaml"
+  config="${config//@LINUX_DRIVE_SERIAL@/"$linux_drive_serial"}"
   printf '%s\n' "${config//@PASSWORD_HASH@/"$hash"}" >"$work/autoinstall.yaml"
 
   sed -i "s| --- | $installer_params --- |" "$work/grub.cfg"
@@ -72,6 +85,7 @@ build() {
       -map "$work/autoinstall.yaml" /autoinstall.yaml \
       -map "$repo_root/linux/machine-setup" /machine-setup \
       -map "$repo_root/bootstrap.sh" /machine-setup/bootstrap.sh \
+      -map "$private/inventory" /machine-setup/inventory \
       -map "$work/grub.cfg" /boot/grub/grub.cfg \
       -map "$work/md5sum.txt" /md5sum.txt \
       "${hooks[@]}" >"$work/xorriso.log" 2>&1; then

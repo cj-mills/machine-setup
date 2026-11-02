@@ -7,7 +7,8 @@
 #
 # Ubuntu 26.04 desktop install for the workstation, layout from docs/design.md
 # ("Drive layout"). scripts/build-install-media.sh puts this at the root of the
-# installation medium, filling in the password hash, so the installer picks it up
+# installation medium, filling in the password hash and the drive's serial (kept out of
+# this public repository, like the machine's other facts), so the installer picks it up
 # without any boot option. With no `autoinstall` on the kernel command line it stops
 # at the page showing this file, which is the one human step of the install.
 #
