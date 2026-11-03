@@ -22,6 +22,26 @@
     name: "{{ vendor_repos_list | map(attribute='packages') | flatten }}"
     state: present
 
+# `state: present` accepts a same-named package from any archive, such as Ubuntu's
+# transitional `firefox` wrapper for the snap. Replace those with the vendor's.
+- name: Find vendor packages installed from another archive
+  ansible.builtin.script:
+    cmd: >-
+      foreign_installs.py
+      {% for repo in vendor_repos_list %}{% for pkg in repo.packages %}
+      {{ (pkg ~ '=' ~ (repo.uris | urlsplit('hostname'))) | quote }}
+      {% endfor %}{% endfor %}
+    executable: /usr/bin/python3
+  register: vendor_repos_foreign
+  changed_when: false
+  check_mode: false
+
+- name: Install the vendor's version over packages from another archive
+  ansible.builtin.apt:
+    name: "{{ vendor_repos_foreign.stdout_lines }}"
+    allow_downgrade: true
+  when: vendor_repos_foreign.stdout_lines | length > 0
+
 # Self-managed packages write their own source and keyring during install, so the
 # handover finishes in the same run that installs them.
 - name: Refresh installed package facts
