@@ -14,3 +14,14 @@
     mode: "0644"
   when: base_grub_cmdline_extra | length > 0
   notify: Update GRUB
+
+# The kernel's attachment matcher mishandles diff-encoded DFAs, so a profile whose
+# attachment nests alternations never attaches, silently: Ubuntu's `firefox`, which grants
+# Mozilla's deb the user namespaces its sandbox needs. Drop this once the kernel is fixed
+# (https://gitlab.com/apparmor/apparmor-kernel/-/issues/8;
+# docs/decisions/2026-11-02-apparmor-no-diff-encode.md).
+- name: Compile AppArmor policy without diff encoding
+  ansible.builtin.lineinfile:
+    path: /etc/apparmor/parser.conf
+    line: Optimize=no-diff-encode
+  notify: Recompile AppArmor policy

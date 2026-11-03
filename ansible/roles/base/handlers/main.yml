@@ -1,3 +1,17 @@
 - name: Update GRUB
   ansible.builtin.command: update-grub
   changed_when: true
+
+# Recompiles every profile in /etc/apparmor.d with the parser's current options. The
+# cache is checked against profile files only, not parser.conf, so it goes first.
+# Running processes keep their old label until they are restarted.
+- name: Purge the AppArmor policy cache
+  ansible.builtin.command: apparmor_parser --purge-cache
+  changed_when: true
+  listen: Recompile AppArmor policy
+
+- name: Reload AppArmor policy
+  ansible.builtin.systemd_service:
+    name: apparmor
+    state: reloaded
+  listen: Recompile AppArmor policy
