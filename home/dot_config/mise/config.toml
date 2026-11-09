@@ -1,5 +1,16 @@
-# Global per-user tools. Projects pin their own versions in a local mise.toml.
+# Global per-user tools. Projects pin their own versions in a local mise.toml;
+# for Rust, in a rust-toolchain.toml (read by mise, see [settings]).
 [tools]
 node = "lts"
 uv = "latest"
 aws-cli = "latest"
+# rustup plus a default stable toolchain, with the WebAssembly target.
+rust = { version = "stable", profile = "default", targets = "wasm32-unknown-unknown" }
+# wasm-bindgen must match the project's wasm-bindgen crate exactly: projects pin it.
+"github:wasm-bindgen/wasm-bindgen" = "latest"
+"aqua:WebAssembly/binaryen" = "latest"  # wasm-opt
+
+[settings]
+# mise sets RUSTUP_TOOLCHAIN, which beats rust-toolchain.toml in rustup; reading
+# the file makes the project's toolchain the one mise selects there.
+idiomatic_version_file_enable_tools = ["rust"]
