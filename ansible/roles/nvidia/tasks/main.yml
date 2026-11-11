@@ -21,24 +21,30 @@
       notify: Report reboot needed
 
     # 32-bit programs such as Steam (roles/steam enables i386) need the driver's 32-bit
-    # OpenGL and Vulkan libraries. Multi-Arch "same" packages must match the 64-bit ones
-    # exactly, so the installed version is pinned: apt would otherwise upgrade the 64-bit
-    # libraries past the loaded kernel module.
+    # libraries. The driver package recommends them, so apt adds them when i386 is
+    # enabled before the driver is installed, but not when i386 comes later. This
+    # installs that same set either way, at the installed driver's exact version: they
+    # are Multi-Arch "same" packages, and apt would otherwise upgrade the 64-bit
+    # libraries past the loaded kernel module to match.
     - name: Read foreign architectures
       ansible.builtin.command: dpkg --print-foreign-architectures
       register: nvidia_foreign_architectures
       changed_when: false
 
-    - name: Read the installed driver libraries' version
+    - name: Read the installed driver's version
       ansible.builtin.command: >-
-        dpkg-query -W -f=${Version} libnvidia-gl-{{ nvidia_driver_branch }}:amd64
-      register: nvidia_gl_version
+        dpkg-query -W -f=${Version} nvidia-driver-{{ nvidia_driver_branch }}-open
+      register: nvidia_driver_version
       changed_when: false
       when: "'i386' in nvidia_foreign_architectures.stdout_lines"
 
     - name: Install the driver's 32-bit libraries
       ansible.builtin.apt:
-        name: "libnvidia-gl-{{ nvidia_driver_branch }}:i386={{ nvidia_gl_version.stdout }}"
+        name: >-
+          {{ ['libnvidia-compute', 'libnvidia-decode', 'libnvidia-encode', 'libnvidia-fbc1',
+              'libnvidia-gl']
+             | product(['-' ~ nvidia_driver_branch ~ ':i386=' ~ nvidia_driver_version.stdout])
+             | map('join') | list }}
         state: present
       when: "'i386' in nvidia_foreign_architectures.stdout_lines"
 
