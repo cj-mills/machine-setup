@@ -47,6 +47,14 @@ Linting (no system Ansible on the host): a scratch venv, `pip install ansible-li
 in `ansible/`: `ansible-playbook site.yml --syntax-check` and
 `ansible-lint --offline site.yml roles inventory` (passes the `production` profile).
 Run Ansible commands with `</dev/null 2>&1 | cat` (it rejects non-blocking stdio).
+In a fresh worktree, install the git-ignored collections first:
+`ansible-galaxy collection install -r requirements.yml -p collections`.
+Override a boolean with JSON (`-e '{"nvidia_gpu": true}'`): `-e nvidia_gpu=true` passes
+a string, which `when:` rejects.
+
+From a git worktree, run `test-vm.sh` from a full clone of the branch
+(`git clone --branch <branch> <main checkout> <dir>`): the guest's 9p share holds the
+worktree's `.git` pointer file, which it can't follow.
 
 Test VMs (`scripts/test-vm.sh`, QEMU/KVM, no root; state in
 `/mnt/data/vm/<name>` on the workstation, else `~/.local/share/machine-setup/vm/<name>`):
