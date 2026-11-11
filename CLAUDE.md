@@ -16,8 +16,8 @@ drives) and the per-item keep/drop reviews of each machine are in
 ## Layout
 
 - `bootstrap.sh`, `scripts/converge-system.sh`: Linux entry points (Ansible system layer).
-- `ansible/`: roles base, mounts, vendor_repos, release_debs, blender, docker, nvidia,
-  flatpak, snaps, test_vms. Hosts: `innom-dt` (workstation), `ms-test` (Linux test VM),
+- `ansible/`: roles base, mounts, vendor_repos, release_debs, blender, miniforge, docker,
+  steam, nvidia, flatpak, snaps, test_vms. Hosts: `innom-dt` (workstation), `ms-test` (Linux test VM),
   `innom-lt` (laptop). Host data in `inventory/host_vars/`.
 - `home/`: chezmoi source (`.chezmoiroot`); hooks re-converge on `ansible/` changes and
   run `mise install` on mise-config changes. Workstation-only user timers

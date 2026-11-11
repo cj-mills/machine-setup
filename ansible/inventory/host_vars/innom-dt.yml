@@ -1,5 +1,6 @@
 primary_user: innom-dt
 nvidia_gpu: true
+steam_enabled: true
 
 # Keeps NVMe drives out of low-power states. Set by hand on the 24.04 install; whether
 # these drives still need it isn't known, and a desktop loses nothing by keeping it.

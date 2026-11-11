@@ -1,0 +1,34 @@
+# Steam from Ubuntu's multiverse (docs/decisions/2026-11-10-steam-from-ubuntu-multiverse.md).
+# Steam's client is 32-bit, so the host gets i386 as a foreign architecture. The package
+# is only a bootstrapper: the client and its runtime update themselves in the user's
+# home. The nvidia role, which runs after this one, adds the driver's 32-bit libraries.
+
+- name: Read foreign architectures
+  ansible.builtin.command: dpkg --print-foreign-architectures
+  register: steam_foreign_architectures
+  changed_when: false
+
+- name: Enable i386 packages
+  ansible.builtin.command: dpkg --add-architecture i386
+  when: "'i386' not in steam_foreign_architectures.stdout_lines"
+  changed_when: true
+
+# Checked on disk rather than from the task above, so a run interrupted after enabling
+# i386 still refreshes the lists on the next run.
+- name: Find i386 package lists
+  ansible.builtin.find:
+    paths: /var/lib/apt/lists
+    patterns: "*_binary-i386_Packages*"
+  register: steam_i386_lists
+
+- name: Refresh apt cache for i386
+  ansible.builtin.apt:
+    update_cache: true
+  when: steam_i386_lists.matched == 0
+
+# Recommends bring steam-devices (udev rules for controllers and headsets) and the
+# graphics libraries the client uses.
+- name: Install Steam
+  ansible.builtin.apt:
+    name: steam-installer
+    state: present

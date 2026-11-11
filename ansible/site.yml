@@ -20,6 +20,7 @@
     - {role: blender, tags: blender}
     - {role: miniforge, tags: miniforge}
     - {role: docker, tags: docker}
+    - {role: steam, tags: steam, when: steam_enabled}
     - {role: nvidia, tags: nvidia}
     - {role: flatpak, tags: flatpak}
     - {role: snaps, tags: snaps}

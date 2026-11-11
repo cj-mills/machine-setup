@@ -2,3 +2,4 @@
 # and user `tester`.
 primary_user: tester
 nvidia_gpu: false
+steam_enabled: true
