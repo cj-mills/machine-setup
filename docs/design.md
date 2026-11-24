@@ -124,7 +124,9 @@ those would be rework on retired code; the links go when the era's tools do.
 One file per decision in `docs/decisions/`, named `YYYY-MM-DD-<slug>.md`. A decision is
 never rewritten: a later one replaces it, and the old file's `status` becomes
 `superseded`, with `superseded_by` naming its replacement. Decisions up to 2026-11-01
-were converted verbatim from the table that used to be here.
+were converted verbatim from the table that used to be here, with no record of who
+decided them (`decided_by: not recorded`). The files are generated from the owner's
+private notes and not edited here: `CLAUDE.md`, "Decisions are edited in the vault".
 
 ## Repository layout
 
