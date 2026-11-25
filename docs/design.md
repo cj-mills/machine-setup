@@ -94,7 +94,7 @@ on the workstation, in the hub) holding `workstation.env`, read by
 inventory overlay that `scripts/converge-system.sh` adds to `ansible/inventory/`. Install
 media carry a copy of the overlay to `/etc/machine-setup/inventory`, for the first boot,
 before the hub's drive is mounted
-(`docs/decisions/2026-11-02-machine-facts-outside-repo.md`).
+(`2026-11-02-machine-facts-outside-repo`).
 
 Data-drive filesystems use no root reservation (`-m 0`) and GPT type "Linux
 filesystem" (`scripts/prepare-data-disk.sh`). Mounts are managed by the `mounts` role
@@ -105,7 +105,7 @@ from `mounts_list`, which for the workstation comes from the private overlay.
 Content is sorted by how it behaves, which also decides what gets backed up. The layout
 itself is kept with the owner's private workspace notes, as is what `backup-snapshot`
 copies: it reads `~/.config/backup-snapshot/`, which chezmoi links there on the
-workstation (`docs/decisions/2026-11-02-backup-policy-in-config.md`).
+workstation (`2026-11-02-backup-policy-in-config`).
 
 On Windows, `C:` keeps apps, game libraries and default user folders, and a Dev Drive at
 `P:` holds work, using the same names as Linux: `P:\cj-mills`, `P:\upstream`, `P:\scratch`,
@@ -121,12 +121,13 @@ those would be rework on retired code; the links go when the era's tools do.
 
 ## Decisions
 
-One file per decision in `docs/decisions/`, named `YYYY-MM-DD-<slug>.md`. A decision is
-never rewritten: a later one replaces it, and the old file's `status` becomes
-`superseded`, with `superseded_by` naming its replacement. Decisions up to 2026-11-01
-were converted verbatim from the table that used to be here, with no record of who
-decided them (`decided_by: not recorded`). The files are generated from the owner's
-private notes and not edited here: `CLAUDE.md`, "Decisions are edited in the vault".
+Each decision is a note in the hub's vault, `vault/projects/machine-setup/decisions/`,
+named `YYYY-MM-DD-<slug>` and cited here by that name; none are copied into this repo for
+now. A decision is never rewritten: a later one replaces it, and the old one's `status`
+becomes `superseded`, with `superseded_by` naming its replacement. Decisions up to
+2026-11-01 were converted verbatim from the table that used to be here, with no record of
+who decided them (`decided_by: not recorded`). The notes are the owner's and not edited
+here: `CLAUDE.md`, "Decisions are in the vault, not here".
 
 ## Repository layout
 

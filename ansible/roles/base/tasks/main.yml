@@ -19,7 +19,7 @@
 # attachment nests alternations never attaches, silently: Ubuntu's `firefox`, which grants
 # Mozilla's deb the user namespaces its sandbox needs. Drop this once the kernel is fixed
 # (https://gitlab.com/apparmor/apparmor-kernel/-/issues/8;
-# docs/decisions/2026-11-02-apparmor-no-diff-encode.md).
+# `2026-11-02-apparmor-no-diff-encode`).
 - name: Compile AppArmor policy without diff encoding
   ansible.builtin.lineinfile:
     path: /etc/apparmor/parser.conf

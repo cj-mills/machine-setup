@@ -1,4 +1,4 @@
-# Steam from Ubuntu's multiverse (docs/decisions/2026-11-10-steam-from-ubuntu-multiverse.md).
+# Steam from Ubuntu's multiverse (`2026-11-10-steam-from-ubuntu-multiverse`).
 # Steam's client is 32-bit, so the host gets i386 as a foreign architecture. The package
 # is only a bootstrapper: the client and its runtime update themselves in the user's
 # home. The nvidia role, which runs after this one, adds the driver's 32-bit libraries.

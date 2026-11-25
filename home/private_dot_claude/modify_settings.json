@@ -1,7 +1,7 @@
 {{- /* chezmoi:modify-template */ -}}
 {{- /* Claude Code writes this file itself, so only the keys below are managed. Auto
        memory is off: what sessions learn goes into the hub's records, which people and
-       other agents can read (docs/decisions/2026-11-02-claude-auto-memory-off.md). */ -}}
+       other agents can read (`2026-11-02-claude-auto-memory-off`). */ -}}
 {{- $settings := dict -}}
 {{- if .chezmoi.stdin -}}{{- $settings = fromJson .chezmoi.stdin -}}{{- end -}}
 {{- $settings = setValueAtPath "autoMemoryEnabled" false $settings -}}
