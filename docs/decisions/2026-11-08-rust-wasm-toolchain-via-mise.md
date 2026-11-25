@@ -1,5 +1,6 @@
 ---
-status: accepted
+status: superseded
+superseded_by: 2026-11-08-rust-comes-from-mise-and-yields-to-rust-toolchain-toml, 2026-11-08-wasm-bindgen-and-wasm-opt-come-from-mise-pinned-per-project
 decided_by: user (Rust belongs in machine-setup); form chosen in session
 source: session 2026-11-08-machine-setup-rust-toolchain
 ---
