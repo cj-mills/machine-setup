@@ -2,7 +2,7 @@
 
 Declarative setup for the user's machines (public repo `cj-mills/machine-setup`).
 Start with `README.md`. The design lives in `docs/design.md`, and each decision with its
-rationale in its own file in `docs/decisions/`; `docs/linux-install.md` and
+rationale in the hub's vault (below); `docs/linux-install.md` and
 `docs/windows-install.md` are the install runbooks.
 
 Status, open work and the machine's own facts (drives, backups, what was installed by
@@ -13,15 +13,12 @@ drives) and the per-item keep/drop reviews of each machine are in
 `/mnt/projects/hub/environment/machine-setup/` (`MACHINE_SETUP_PRIVATE`; see
 `docs/design.md`, "Drive layout").
 
-## Decisions are edited in the vault, not here
+## Decisions are in the vault, not here
 
-`docs/decisions/` is generated. Each file is exported from a decision note in the hub's vault (`vault/projects/machine-setup/decisions/`) and starts, after its frontmatter, with a comment saying so. Edits made here are overwritten by the next export.
+This repo's decisions are in the hub's vault, `vault/projects/machine-setup/decisions/` on the `/mnt/projects` drive, and are cited here by name. None are copied into the repo for now (decision `2026-11-24-no-repo-copies-of-decisions-for-now`, in the vault's `decisions/`).
 
-- **To record a decision,** write it as a vault note with `export: repo` (the rules: the vault's `CLAUDE.md`, "Decisions a repo keeps"). A session started in this repo reaches the vault with `claude --add-dir` on the hub's `vault/`.
-- **This repo is public.** An exported decision holds nothing private: the machine's own facts and account or secret names stay in the vault, in a `## Private` section or a `> [!private]` callout, which the export leaves out.
-- **Some decisions are kept in the vault only**: those about the project's direction rather than its code. A decision cited by name that has no file in `docs/decisions/` is one of them, in the same vault folder.
+- **To record a decision,** write it as a vault note (the rules: the vault's `CLAUDE.md`). A session started in this repo reaches the vault with `claude --add-dir` on the hub's `vault/`.
 - **To change one,** write a new decision that supersedes it; decisions are written once.
-- **Then export** from the hub checkout: `python3 tools/vault_export.py machine-setup --repo <this checkout or worktree>`, and commit the exported files here with the change they belong to. `--check` exits non-zero when this repo's copies are not current.
 
 ## Layout
 
